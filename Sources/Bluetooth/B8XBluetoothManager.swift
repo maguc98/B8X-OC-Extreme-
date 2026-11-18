@@ -133,9 +133,9 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     }
 
     var captureExportText: String {
-        let markers = physicalActionMarkers.isEmpty ? "无动作标记" : physicalActionMarkers.reversed().joined(separator: "\\n")
-        let frames = rawFrameHistory.reversed().joined(separator: "\\n")
-        return "【实体按键动作标记】\\n\(markers)\\n\\n【状态帧（新→旧）】\\n\(frames)"
+        let markers = physicalActionMarkers.isEmpty ? "无动作标记" : physicalActionMarkers.reversed().joined(separator: "\n")
+        let frames = rawFrameHistory.reversed().joined(separator: "\n")
+        return "【实体按键动作标记】\n\(markers)\n\n【状态帧（新→旧）】\n\(frames)"
     }
 
     func setLight(_ enabled: Bool) { send(.light(enabled)) }
