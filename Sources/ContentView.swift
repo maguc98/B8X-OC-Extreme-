@@ -690,7 +690,7 @@ private struct GaugeTicks: Shape {
         let radius = min(rect.width, rect.height) / 2 - 2
         for index in 0...40 {
             let progress = Double(index) / 40
-            let angle = (130.0 + progress * 280.0) * .pi / 180
+            let angle = CGFloat((130.0 + progress * 280.0) * Double.pi / 180)
             let major = index % 5 == 0
             let innerRadius = radius - (major ? 10 : 5)
             path.move(to: CGPoint(x: centre.x + cos(angle) * innerRadius, y: centre.y + sin(angle) * innerRadius))
