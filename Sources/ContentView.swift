@@ -8,6 +8,9 @@ struct ContentView: View {
     @State private var coldTarget = 110.0
     @State private var fanDirty = false
     @State private var coldDirty = false
+    @State private var isAdjustingFan = false
+    @State private var isAdjustingCold = false
+    @State private var lastSliderHapticTime = 0.0
     @State private var logsCopied = false
     @AppStorage("B8X.lowTemperatureProtectionEnabled") private var lowTemperatureProtectionEnabled = true
     @AppStorage("B8X.highTemperatureProtectionEnabled") private var highTemperatureProtectionEnabled = true
@@ -43,17 +46,18 @@ struct ContentView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
         .preferredColorScheme(.light)
         .onAppear { bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
+        .onChange(of: fanTarget) { _ in if isAdjustingFan { emitSliderHaptic() } }
+        .onChange(of: coldTarget) { _ in if isAdjustingCold { emitSliderHaptic() } }
         .onChange(of: lowTemperatureProtectionEnabled) { _ in bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
         .onChange(of: highTemperatureProtectionEnabled) { _ in bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
-            if !fanDirty { fanTarget = min(max(Double(value.windLevel), 4000), 6000) }
-            if !coldDirty { coldTarget = (92...255).contains(value.coldLevel) ? Double(value.coldLevel) : 92 }
+            if !fanDirty { fanTarget = min(max(Double(value.windLevel), 1), 6000) }
+            if !coldDirty { coldTarget = (1...255).contains(value.coldLevel) ? Double(value.coldLevel) : 1 }
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
-            fanTarget = min(max(Double(value.windLevel), 4000), 6000)
-            coldTarget = min(max(Double(value.coldLevel), 92), 255)
+            write confirmation sync
             fanDirty = false
             coldDirty = false
         }
@@ -218,7 +222,7 @@ struct ContentView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 1) {
-                                Text(Int(fanTarget).formatted()).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.blueInk)
+                                Text(Int(fanTarget.rounded()).formatted()).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.blueInk)
                                 Text("RPM · 目标").font(.system(size: 8, weight: .heavy)).tracking(0.6).foregroundStyle(Studio.muted)
                             }
                         }
@@ -226,16 +230,19 @@ struct ContentView: View {
                             miniMetric("设备回报", value: s.windLevel.formatted(), unit: "RPM", tint: Studio.ink)
                             miniMetric("实际转速", value: s.fanRPM.formatted(), unit: "RPM", tint: Studio.blueInk)
                         }
-                        Slider(value: $fanTarget, in: 4000...6000, step: 100) { editing in if editing { fanDirty = true } }.tint(Studio.blue)
+                        Slider(value: $fanTarget, in: 1...6000) { editing in
+                            isAdjustingFan = editing
+                            if editing { fanDirty = true; emitSliderHaptic() }
+                        }.tint(Studio.blue)
                         HStack {
-                            Text("4,000"); Spacer(); Text("每格 100 RPM"); Spacer(); Text("6,000")
+                            Text("1 RPM"); Spacer(); Text("连续调节 · 1 RPM 精度"); Spacer(); Text("6,000 RPM")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
                         if s.windLevel > 6000 {
                             Text("设备当前回报 \(s.windLevel) RPM，高于设定上限；写入时会调整到所选目标。")
                                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
                                 .padding(9).frame(maxWidth: .infinity, alignment: .leading).background(Studio.butter, in: RoundedRectangle(cornerRadius: 11))
                         }
-                        Text("常规验证范围为 4,000–4,500 RPM；更高转速属于扩展区间，建议实机确认。")
+                        Text("控制范围为 1–6,000 RPM，按 1 RPM 精度调节。参考项目验证范围为 4,000–4,500 RPM；其余区间请以实机表现为准。")
                             .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -258,15 +265,18 @@ struct ContentView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(Int(coldTarget))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
+                                Text("\(Int(coldTarget.rounded()))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
                                 Text("设定目标").font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
                             }
                         }
-                        Slider(value: $coldTarget, in: 92...255, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
+                        Slider(value: $coldTarget, in: 1...255) { editing in
+                            isAdjustingCold = editing
+                            if editing { coldDirty = true; emitSliderHaptic() }
+                        }.tint(Studio.green)
                         HStack {
-                            Text("92"); Spacer(); Text("255 · 协议单字节上限")
+                            Text("1"); Spacer(); Text("连续调节 · 1 档精度"); Spacer(); Text("255")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
-                        Text("目标制冷档位将在下方统一写入。")
+                        Text("范围 1–255，按 1 档精度调节；原始档位值不代表瓦数或温度。")
                             .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                     }
                 }
@@ -280,11 +290,11 @@ struct ContentView: View {
                                 .foregroundStyle(bluetooth.isBusy ? Studio.goldInk : Studio.greenInk)
                         }
                         HStack(spacing: 8) {
-                            applySummary(icon: "fanblades.fill", title: "风扇目标", value: "\(Int(fanTarget).formatted())", unit: "RPM", wash: Studio.sky, ink: Studio.blueInk)
-                            applySummary(icon: "snowflake", title: "制冷目标", value: "\(Int(coldTarget))", unit: "档", wash: Studio.mint, ink: Studio.greenInk)
+                            applySummary(icon: "fanblades.fill", title: "风扇目标", value: "\(Int(fanTarget.rounded()).formatted())", unit: "RPM", wash: Studio.sky, ink: Studio.blueInk)
+                            applySummary(icon: "snowflake", title: "制冷目标", value: "\(Int(coldTarget.rounded()))", unit: "档", wash: Studio.mint, ink: Studio.greenInk)
                         }
                         Button {
-                            bluetooth.applySettings(wind: Int(fanTarget), cold: Int(coldTarget))
+                            bluetooth.applySettings(wind: Int(fanTarget.rounded()), cold: Int(coldTarget.rounded()))
                         } label: {
                             HStack(spacing: 9) {
                                 Image(systemName: bluetooth.isBusy ? "hourglass" : "arrow.down.to.line")
@@ -303,8 +313,8 @@ struct ContentView: View {
                         Text("将两个目标一起写入，并切换到手动模式；界面会以设备回报作为最终状态。")
                             .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                             .fixedSize(horizontal: false, vertical: true)
-                        if s.coldLevel < 92 || s.coldLevel > 255 {
-                            Text("设备当前制冷原始值 \(s.coldLevel) 超出 92–255；本次写入将替换为上方目标档位。")
+                        if s.coldLevel < 1 || s.coldLevel > 255 {
+                            Text("设备当前制冷原始值 \(s.coldLevel) 超出 1–255；本次写入将替换为上方目标档位。")
                                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -609,6 +619,15 @@ struct ContentView: View {
             Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(Studio.ink)
             Text(note).font(.system(size: 7, weight: .heavy, design: .rounded)).tracking(1.3).foregroundStyle(Studio.muted)
         }
+    }
+
+    private func emitSliderHaptic() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastSliderHapticTime >= 0.085 else { return }
+        lastSliderHapticTime = now
+        let feedback = UISelectionFeedbackGenerator()
+        feedback.prepare()
+        feedback.selectionChanged()
     }
 
     private func miniMetric(_ title: String, value: String, unit: String, tint: Color) -> some View {
