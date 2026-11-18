@@ -108,8 +108,9 @@ final class B8XOCProtocolTests: XCTestCase {
     func testModeChangeCannotPreserveUnverifiedCurrentSettings() throws {
         let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 61))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidFan))
-        let invalidCooling = try B8XStatus.decode(sampleFrame(coldLevel: 256))
-        XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidCooling))
+        let maxCooling = try B8XStatus.decode(sampleFrame(coldLevel: 255))
+        XCTAssertNoThrow(try B8XControl.mode(1).packet(using: maxCooling))
+        XCTAssertThrowsError(try B8XControl.cold(256).packet(using: maxCooling))
     }
 
     func testStatusExpectationMatchesOnlyRequestedAndPreservedFields() throws {
