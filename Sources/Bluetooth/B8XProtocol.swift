@@ -13,6 +13,22 @@ struct B8XStatus: Equatable {
     /// The B8X reports mode 0 as automatic and mode 1 as manual.
     var isAutomaticMode: Bool { modeRaw == 0 }
 
+    /// Hypothesis only: byte 15 matches known Flydigi LED effect IDs.
+    /// This is diagnostic metadata, not a verified B8X control mapping.
+    var candidateLightingEffectName: String? {
+        switch raw[15] {
+        case 0x03: return "流光"
+        case 0x04: return "切换"
+        case 0x05: return "呼吸"
+        case 0x06: return "渐变"
+        case 0x0B: return "常亮"
+        case 0x0C: return "变频旋转"
+        case 0x10: return "多色旋转"
+        case 0x11: return "跳动"
+        default: return nil
+        }
+    }
+
     static func decode(_ data: Data) throws -> B8XStatus {
         let bytes = [UInt8](data)
         guard bytes.count == 20, bytes[0] == 0x13 else {
