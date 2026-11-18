@@ -225,3 +225,25 @@ References:
 - Do not assign B8X mode/type mappings by copying B6X labels. The user's B8X UI effect labels need a B8X-specific mapping.
 - Preserve the existing confirmed B8X on/off path (`10 FF` / `10 00`).
 - The next useful proof is a B8X-specific official-client call path or a controlled B8X GATT capture showing a `50` command followed by matching `51` readback. Until then, treat the B6/B6X API as a research lead, not an executable B8X protocol.
+
+
+### B8X status byte 15: strong LED-effect-ID hypothesis (not yet confirmed)
+
+Re-evaluating the earlier user captures against the B6/B6X effect enum reveals a much stronger pattern than an arbitrary unknown byte:
+
+| B8X capture value at byte 15 | B6/B6X LED type with the same numeric value | Candidate B8X label |
+|---:|---|---|
+| `03` | type 3 | 流光 |
+| `04` | type 4 | 切换 |
+| `05` | type 5 | 呼吸 |
+| `06` | type 6 | 渐变 |
+| `0B` | type 11 | 常亮 |
+| `10` | type 16 | 多色旋转 |
+| `11` | type 17 | 跳动 |
+| `0C` | type 12 | 变频旋转（not observed in the cited captures） |
+
+The seven values actually present in the 21:37–21:38 capture (`03, 04, 05, 06, 10, 11, 0B`) therefore match seven of the eight B8X UI effect names and their numeric IDs in the newer Flydigi LED type list. The 21:56:20–21:56:21 capture also shows byte 15 changing from `0B` to `03`, which is consistent with the candidate mapping 常亮 → 流光.
+
+This is now the leading interpretation of B8X status byte 15. It is still a hypothesis because the earlier captures do not record the exact frame of each physical double-press, and the B6/B6X type list is not a B8X-specific packet capture. The repeated set of matching identifiers is strong corroboration, but not sufficient on its own to authorize writes.
+
+Next validation target: establish a timestamped, single physical double-press and compare the immediately preceding and following status frames. If byte 15 changes from one of these identifiers to the next selected effect at the action boundary, decode it as the B8X current effect ID. This would validate the status mapping, but would still not independently validate the B8X `0x50` write payload or `0x51` readback. Keep those writes disabled until separately evidenced.
