@@ -10,6 +10,7 @@ struct DiscoveredDevice: Identifiable {
 }
 
 final class B8XBluetoothManager: NSObject, ObservableObject {
+    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback }
     private let serviceID = CBUUID(string: "FFE0")
     private let writeID = CBUUID(string: "FFE1")
     private let notifyID = CBUUID(string: "FFE4")
@@ -43,6 +44,9 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var awaitingConfirmation: B8XStatusExpectation?
     private var notificationReady = false
     private var operationTimeout: DispatchWorkItem?
+    private var confirmationReadbackWorkItem: DispatchWorkItem?
+    private var confirmationReadbackAttempt = 0
+    private var pendingWritePurposes: [BLEWritePurpose] = []
     private var reconnectWorkItem: DispatchWorkItem?
     private var userRequestedDisconnect = false
     private let rememberedPeripheralKey = "B8X.rememberedPeripheralUUID"
@@ -111,7 +115,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             detailText = "请先连接 B8X 并完成通知订阅"
             return
         }
-        guard write(Data([0x13])) else { return }
+        guard write(Data([0x13]), purpose: .statusRequest) else { return }
         detailText = "正在请求设备状态…"
     }
 
@@ -186,13 +190,16 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
         operationTimeout?.cancel()
         operationTimeout = nil
+        confirmationReadbackWorkItem?.cancel()
+        confirmationReadbackWorkItem = nil
+        confirmationReadbackAttempt = 0
         do {
             _ = try control.expectedStatus(from: current)
             requestedControl = control
             awaitingConfirmation = nil
             isBusy = true
             lastCommandText = "正在读取最新状态，准备发送控制指令…"
-            guard write(Data([0x13])) else {
+            guard write(Data([0x13]), purpose: .statusRequest) else {
                 requestedControl = nil
                 isBusy = false
                 lastCommandText = "状态请求未能写入，请检查连接后重试"
@@ -205,12 +212,13 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     }
 
     @discardableResult
-    private func write(_ data: Data) -> Bool {
+    private func write(_ data: Data, purpose: BLEWritePurpose = .statusRequest) -> Bool {
         guard let peripheral = connectedPeripheral,
               let characteristic = writeCharacteristic else {
             detailText = "写入通道尚未就绪"
             return false
         }
+        pendingWritePurposes.append(purpose)
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
         return true
     }
@@ -235,11 +243,32 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             self.awaitingConfirmation = nil
             self.isBusy = false
             self.operationTimeout = nil
+            self.confirmationReadbackWorkItem?.cancel()
+            self.confirmationReadbackWorkItem = nil
             self.lastCommandText = "设备确认超时。请刷新状态核对实际值，不要连续重复发送。"
             self.refreshStatus()
         }
         operationTimeout = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timeout)
+    }
+
+    /// Actively request fresh telemetry after a successful control write.
+    /// Some firmware revisions do not emit an immediate unsolicited update.
+    private func scheduleConfirmationReadback(after delay: TimeInterval = 0.4) {
+        guard awaitingConfirmation != nil, confirmationReadbackAttempt < 3 else { return }
+        confirmationReadbackWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.awaitingConfirmation != nil, self.notificationReady else { return }
+            self.confirmationReadbackAttempt += 1
+            let attempt = self.confirmationReadbackAttempt
+            guard self.write(Data([0x13]), purpose: .confirmationReadback) else {
+                self.lastCommandText = "指令已发送，但主动读取设备状态失败。请检查连接。"
+                return
+            }
+            self.lastCommandText = "指令已发送，正在读取设备状态（\\(attempt)/3）…"
+        }
+        confirmationReadbackWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func handleStatus(_ newStatus: B8XStatus) {
@@ -267,7 +296,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
                 let packet = try control.packet(using: newStatus)
                 awaitingConfirmation = try control.expectedStatus(from: newStatus)
                 requestedControl = nil
-                guard write(packet) else {
+                guard write(packet, purpose: .controlCommand) else {
                     awaitingConfirmation = nil
                     isBusy = false
                     lastCommandText = "控制指令未能写入，请检查蓝牙连接"
@@ -285,6 +314,9 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
         if let expected = awaitingConfirmation, expected.matches(newStatus) {
             awaitingConfirmation = nil
+            confirmationReadbackWorkItem?.cancel()
+            confirmationReadbackWorkItem = nil
+            confirmationReadbackAttempt = 0
             operationTimeout?.cancel()
             operationTimeout = nil
             isBusy = false
@@ -303,6 +335,9 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
             awaitingConfirmation = nil
             operationTimeout?.cancel()
             operationTimeout = nil
+            confirmationReadbackWorkItem?.cancel()
+            confirmationReadbackWorkItem = nil
+            pendingWritePurposes.removeAll()
             isBusy = false
         }
         switch central.state {
@@ -369,6 +404,9 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         awaitingConfirmation = nil
         operationTimeout?.cancel()
         operationTimeout = nil
+        confirmationReadbackWorkItem?.cancel()
+        confirmationReadbackWorkItem = nil
+        pendingWritePurposes.removeAll()
         isBusy = false
         connectedPeripheral = nil
         connectedName = nil
@@ -392,6 +430,9 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         awaitingConfirmation = nil
         operationTimeout?.cancel()
         operationTimeout = nil
+        confirmationReadbackWorkItem?.cancel()
+        confirmationReadbackWorkItem = nil
+        pendingWritePurposes.removeAll()
         isBusy = false
         status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
@@ -523,15 +564,39 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
                     didWriteValueFor characteristic: CBCharacteristic,
                     error: Error?) {
         guard characteristic.uuid == writeID else { return }
+        let purpose = pendingWritePurposes.isEmpty ? BLEWritePurpose.statusRequest : pendingWritePurposes.removeFirst()
         if let error {
-            isBusy = false
-            requestedControl = nil
-            awaitingConfirmation = nil
-            operationTimeout?.cancel()
-            operationTimeout = nil
-            lastCommandText = "写入失败：\(error.localizedDescription)"
-        } else if awaitingConfirmation != nil {
-            lastCommandText = "蓝牙已接受写入，等待设备状态确认…"
+            switch purpose {
+            case .controlCommand:
+                isBusy = false
+                requestedControl = nil
+                awaitingConfirmation = nil
+                operationTimeout?.cancel()
+                operationTimeout = nil
+                confirmationReadbackWorkItem?.cancel()
+                confirmationReadbackWorkItem = nil
+                lastCommandText = "写入失败：\(error.localizedDescription)"
+            case .confirmationReadback:
+                detailText = "主动状态回读失败：\(error.localizedDescription)"
+                if awaitingConfirmation != nil { scheduleConfirmationReadback(after: 0.8) }
+            case .statusRequest:
+                detailText = "状态请求写入失败：\(error.localizedDescription)"
+            }
+            return
+        }
+
+        switch purpose {
+        case .controlCommand:
+            if awaitingConfirmation != nil {
+                lastCommandText = "蓝牙已接受写入，正在主动核对设备状态…"
+                scheduleConfirmationReadback()
+            }
+        case .confirmationReadback:
+            if awaitingConfirmation != nil, confirmationReadbackAttempt < 3 {
+                scheduleConfirmationReadback(after: 0.9)
+            }
+        case .statusRequest:
+            break
         }
     }
 }
