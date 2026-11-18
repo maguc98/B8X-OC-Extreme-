@@ -357,7 +357,7 @@ struct ContentView: View {
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Studio.blueInk)
                         }
-                        .disabled(bluetooth.rawFrameHistory.isEmpty)
+                        .disabled(bluetooth.rawFrameHistory.isEmpty && bluetooth.physicalActionMarkers.isEmpty)
                     }
                     if let s = bluetooth.status {
                         Text(s.raw.map { String(format: "%02X", $0) }.joined(separator: " "))
@@ -392,7 +392,7 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("实体按键动作标记（点击标记按钮后立即双击）")
                                 .font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
-                            ForEach(bluetooth.physicalActionMarkers.prefix(5), id: \\.self) { marker in
+                            ForEach(bluetooth.physicalActionMarkers.prefix(5), id: \.self) { marker in
                                 Text(marker).font(.system(size: 8, weight: .medium, design: .monospaced))
                                     .foregroundStyle(Studio.coral).textSelection(.enabled)
                                     .fixedSize(horizontal: false, vertical: true)
