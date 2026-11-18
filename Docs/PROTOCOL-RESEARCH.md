@@ -39,9 +39,9 @@ The final three fixed bytes and preserved byte are reproduced from the public re
 
 The current app control limits are:
 
-- Fan setting: 4000–6000 RPM with 1 RPM steps. The UI slider and command encoder both enforce the 6000 RPM ceiling.
+- Fan setting: 4000–6000 RPM with 100 RPM steps. The public B8X reference implementation validates the normal range only through 4500 RPM in 100 RPM increments; 4600–6000 RPM is an app-capped experimental extension and is not confirmed on this hardware. Applying a fixed fan target now sets mode 1 (manual) in the same command packet.
 - If the device reports a current fan setting above 6000 RPM but no higher than 8000 RPM, the fan command path permits a new fan command within 4000–6000 RPM so the user can lower it. While the reported setting remains above 6000 RPM, mode and cooling changes are blocked because their packets would preserve that above-limit fan setting.
-- Cooling raw setting: a single byte at offset 3, so the current packet format can represent 0–255. The app exposes 92–255. A requested value of 300 cannot be represented in this byte and is rejected; a wider encoding must be discovered before 300 can be sent.
+- Cooling raw setting: a single byte at offset 3. The reference implementation validates 92–175; the app now restricts the control slider and encoder to that range. Do not infer watts, temperature, or percentage from this raw value.
 - Mode: 0 automatic, 1 manual.
 
 The public reference project documents the B8X control protocol; the 6000 RPM application limit is a conservative app-side cap, not a claim that the hardware cannot report or otherwise support a higher value.

@@ -162,10 +162,13 @@ struct ContentView: View {
                                 Text("RPM").font(.system(size: 8, weight: .heavy)).tracking(1).foregroundStyle(Studio.muted)
                             }
                         }
-                        Slider(value: $fanTarget, in: 4000...6000, step: 1) { editing in if editing { fanDirty = true } }.tint(Studio.blue)
+                        Slider(value: $fanTarget, in: 4000...6000, step: 100) { editing in if editing { fanDirty = true } }.tint(Studio.blue)
                         HStack {
-                            Text("4,000 RPM"); Spacer(); Text("上限 6,000 RPM")
+                            Text("4,000 RPM"); Spacer(); Text("上限 6,000 RPM · 100 RPM 步进")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
+                        Text(s.modeRaw == 0 ? "应用固定转速时会自动切换到手动模式。参考项目验证的常规范围为 4,000–4,500 RPM；4,600–6,000 RPM 属于尚待本机实测的扩展区间。" : "已处于手动模式。参考项目验证的常规范围为 4,000–4,500 RPM；4,600–6,000 RPM 属于尚待本机实测的扩展区间。")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                         if s.windLevel > 6000 {
                             Text("设备当前回报 \(s.windLevel) RPM，高于新上限。可先将风扇设定调低至 6,000 RPM 或以下。")
                                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
@@ -186,9 +189,9 @@ struct ContentView: View {
                             Spacer()
                             Text("\(Int(coldTarget))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
                         }
-                        Slider(value: $coldTarget, in: 92...255, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
+                        Slider(value: $coldTarget, in: 92...175, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
                         HStack {
-                            Text("92"); Spacer(); Text("255 · 协议上限")
+                            Text("92"); Spacer(); Text("175 · 参考协议上限")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
                         HStack {
                             Text(coldDirty ? "有未应用的更改" : "设备设定 \(s.coldLevel)").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)

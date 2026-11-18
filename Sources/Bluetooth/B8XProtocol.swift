@@ -47,8 +47,8 @@ enum B8XProtocolError: LocalizedError {
         case .invalidFrame: return "收到的状态帧格式不正确"
         case .invalidFields: return "状态帧包含无效字段"
         case .unsupportedMode: return "设备返回了未验证的运行模式"
-        case .invalidWindLevel: return "风扇设定超出当前开放范围（4000–6000 RPM）"
-        case .invalidColdLevel: return "制冷设定超出当前协议可表示范围（92–255）；300 档需要确认扩展编码"
+        case .invalidWindLevel: return "风扇设定必须在 4000–6000 RPM 范围内并按 100 RPM 步进"
+        case .invalidColdLevel: return "制冷设定超出参考协议验证范围（92–175）"
         case .missingStatus: return "尚未读取设备状态"
         }
     }
@@ -68,7 +68,7 @@ enum B8XControl {
         guard fanRange.contains(status.windLevel) else {
             throw B8XProtocolError.invalidWindLevel
         }
-        guard (92...255).contains(status.coldLevel) else {
+        guard (92...175).contains(status.coldLevel) else {
             throw B8XProtocolError.invalidColdLevel
         }
     }
@@ -86,13 +86,13 @@ enum B8XControl {
             return .mode(mode, wind: status.windLevel, cold: status.coldLevel)
         case .wind(let value):
             try validateCurrentSettings(status, allowFanReductionFromAboveLimit: true)
-            guard (4000...6000).contains(value) else {
+            guard (4000...6000).contains(value), value % 100 == 0 else {
                 throw B8XProtocolError.invalidWindLevel
             }
-            return .wind(value, mode: status.modeRaw, cold: status.coldLevel)
+            return .wind(value, mode: 1, cold: status.coldLevel)
         case .cold(let value):
             try validateCurrentSettings(status)
-            guard (92...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
+            guard (92...175).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return .cold(value, mode: status.modeRaw, wind: status.windLevel)
         }
     }
@@ -107,7 +107,8 @@ enum B8XControl {
                          UInt8(status.windLevel / 100), UInt8(status.windLevel % 100),
                          status.raw[6], 92, 40, 0])
         case .wind(let value):
-            return Data([0x20, UInt8(status.modeRaw), UInt8(status.coldLevel),
+            // A fixed RPM target is a manual-control operation; set mode=1 in the same packet.
+            return Data([0x20, 1, UInt8(status.coldLevel),
                          UInt8(value / 100), UInt8(value % 100),
                          status.raw[6], 92, 40, 0])
         case .cold(let value):

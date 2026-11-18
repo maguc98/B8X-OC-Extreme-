@@ -10,7 +10,7 @@ Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phon
 - Subscribe to status notifications and decode the 20-byte status frame.
 - Display cold-side and hot-side temperatures, measured fan RPM, light state, mode, and the raw frame in hexadecimal.
 - Read the latest status before each control write and wait for a matching device notification before reporting success.
-- Fan setting is capped at 6,000 RPM in the UI and command validation.
+- Fan setting is capped at 6,000 RPM with 100 RPM steps. The public reference validates the normal range through 4,500 RPM; 4,600–6,000 RPM is an experimental extension, not confirmed on this hardware. Applying a fixed RPM target also selects manual mode.
 - Run protocol unit tests with SwiftPM in GitHub Actions before the Xcode iOS build and unsigned IPA packaging.
 
 ## Current protocol reference
@@ -23,7 +23,7 @@ Implementation is based on the public reference project: https://github.com/shao
 - Status query byte: 13
 - Status frame: 20 bytes, starting with 13
 - Fan setting: 4000–6000 RPM, encoded as base-100 plus remainder. Telemetry is still displayed as reported by the device.
-- Cooling setting: one-byte raw protocol value 92–255. This is not a wattage, temperature, or percentage. A value of 300 cannot fit the currently decoded one-byte field and is not sent.
+- Cooling setting: reference-validated raw protocol range 92–175. This is not a wattage, temperature, or percentage.
 - Modes: automatic and manual.
 
 The app permits reducing an already-reported fan setting above 6,000 RPM to 6,000 RPM or less. Other controls are blocked while the reported fan setting remains above the app's new ceiling, so another control cannot silently preserve an above-limit fan setting.
