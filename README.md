@@ -2,20 +2,19 @@
 
 Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phone cooler.
 
-## Implemented in the first development stage
+## Current implementation
 
-- Scan nearby Bluetooth Low Energy peripherals.
-- Connect to a selected peripheral.
-- Discover the verified B8X GATT service and characteristics.
-- Subscribe to B8X status notifications.
-- Decode the 20-byte status frame into cold-side temperature, hot-side temperature, measured fan RPM, light state, wind setting, cooling setting, and mode.
-- Read the latest status before every control write.
-- Send supported light, mode, fan-setting, and cooling-setting commands.
-- Wait for a matching device status notification before reporting a control as confirmed.
+- Scan nearby Bluetooth Low Energy peripherals and connect to a selected device.
+- Discover the B8X GATT service and characteristics.
+- Subscribe to status notifications and decode the 20-byte status frame.
+- Display cold-side and hot-side temperatures, measured fan RPM, light state, mode, and the raw frame in hexadecimal.
+- Read the latest status before each control write.
+- Wait for a matching device notification before reporting a control as confirmed.
+- Run protocol unit tests in GitHub Actions before packaging the unsigned IPA.
 
-## Verified protocol reference
+## Current protocol reference
 
-Protocol implementation is based on https://github.com/shaoyou11/ha-flydigi-b8x
+Implementation is based on the public reference project: https://github.com/shaoyou11/ha-flydigi-b8x
 
 - Service: FFE0
 - Write characteristic: FFE1
@@ -31,18 +30,18 @@ The reference project documents these normal control ranges:
 
 These are the only control ranges exposed by this build. Measured fan RPM is reported separately from the fan setting.
 
+See [protocol research notes](Docs/PROTOCOL-RESEARCH.md) for the currently decoded byte offsets, packet format, unknown fields, and a practical capture procedure.
+
 ## GitHub Actions IPA build
 
-Source changes automatically trigger the Build iOS IPA workflow.
+Source or test changes automatically trigger the Build iOS IPA workflow.
 
-1. Open the Actions tab.
+1. Open the [Actions tab](https://github.com/maguc98/B8X-OC-Extreme-/actions).
 2. Select the latest Build iOS IPA run.
-3. Wait for the macOS build to complete.
-4. Download the B8X-OC-Extreme-unsigned-IPA artifact.
+3. Wait for the protocol tests and macOS build to complete.
+4. Download the `B8X-OC-Extreme-unsigned-IPA` artifact.
 
-The artifact is an unsigned IPA. It is not directly installable until signed with a valid Apple development or distribution certificate and provisioning profile. No signing keys are stored in this repository or workflow.
-
-You can also start the workflow manually from Actions using Run workflow.
+The artifact is unsigned and is not directly installable until signed with a valid Apple development or distribution certificate and provisioning profile. No signing keys are stored in this repository or workflow.
 
 ## Local build
 
