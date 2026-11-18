@@ -61,12 +61,12 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(fanRemainder: 100)))
     }
 
-    func testControlPacketsRespectSixThousandRPMAnd255CoolingCeilings() throws {
+    func testControlPacketsRespectSixThousandRPMAndDocumentedCoolingRange() throws {
         let status = try B8XStatus.decode(sampleFrame())
         XCTAssertEqual(try B8XControl.wind(6000).packet(using: status),
                        Data([0x20, 1, 110, 60, 0, 0, 92, 40, 0]))
-        XCTAssertEqual(try B8XControl.cold(255).packet(using: status),
-                       Data([0x20, 1, 255, 42, 0, 0, 92, 40, 0]))
+        XCTAssertEqual(try B8XControl.cold(175).packet(using: status),
+                       Data([0x20, 1, 175, 42, 0, 0, 92, 40, 0]))
         XCTAssertEqual(try B8XControl.light(false).packet(using: status),
                        Data([0x10, 0x00]))
     }
@@ -77,8 +77,8 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertNoThrow(try B8XControl.wind(6000).packet(using: status))
         XCTAssertThrowsError(try B8XControl.wind(4150).packet(using: status))
         XCTAssertThrowsError(try B8XControl.wind(6001).packet(using: status))
-        XCTAssertNoThrow(try B8XControl.cold(255).packet(using: status))
-        XCTAssertThrowsError(try B8XControl.cold(256).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.cold(175).packet(using: status))
+        XCTAssertThrowsError(try B8XControl.cold(176).packet(using: status))
     }
 
     func testWindControlSwitchesAutomaticModeToManualAndUses100RPMSteps() throws {
@@ -109,8 +109,8 @@ final class B8XOCProtocolTests: XCTestCase {
         let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 61))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidFan))
         let maxCooling = try B8XStatus.decode(sampleFrame(coldLevel: 255))
-        XCTAssertNoThrow(try B8XControl.mode(1).packet(using: maxCooling))
-        XCTAssertThrowsError(try B8XControl.cold(256).packet(using: maxCooling))
+        XCTAssertThrowsError(try B8XControl.mode(1).packet(using: maxCooling))
+        XCTAssertThrowsError(try B8XControl.cold(175).packet(using: maxCooling))
     }
 
     func testStatusExpectationMatchesOnlyRequestedAndPreservedFields() throws {
