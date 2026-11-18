@@ -47,8 +47,8 @@ enum B8XProtocolError: LocalizedError {
         case .invalidFrame: return "收到的状态帧格式不正确"
         case .invalidFields: return "状态帧包含无效字段"
         case .unsupportedMode: return "设备返回了未验证的运行模式"
-        case .invalidWindLevel: return "风扇设定必须在 4000–6000 RPM 范围内并按 100 RPM 步进"
-        case .invalidColdLevel: return "制冷设定必须在 92–255 范围内"
+        case .invalidWindLevel: return "风扇设定必须在 1–6000 RPM 范围内"
+        case .invalidColdLevel: return "制冷设定必须在 1–255 范围内"
         case .missingStatus: return "尚未读取设备状态"
         }
     }
@@ -65,11 +65,11 @@ enum B8XControl {
         guard status.modeRaw == 0 || status.modeRaw == 1 else {
             throw B8XProtocolError.unsupportedMode
         }
-        let fanRange = allowFanReductionFromAboveLimit ? (4000...8000) : (4000...6000)
+        let fanRange = allowFanReductionFromAboveLimit ? (1...8000) : (1...6000)
         guard fanRange.contains(status.windLevel) else {
             throw B8XProtocolError.invalidWindLevel
         }
-        guard (92...255).contains(status.coldLevel) else {
+        guard (1...255).contains(status.coldLevel) else {
             throw B8XProtocolError.invalidColdLevel
         }
     }
@@ -87,19 +87,19 @@ enum B8XControl {
             return .mode(mode, wind: status.windLevel, cold: status.coldLevel)
         case .wind(let value):
             try validateCurrentSettings(status, allowFanReductionFromAboveLimit: true)
-            guard (4000...6000).contains(value), value % 100 == 0 else {
+            guard (1...6000).contains(value) else {
                 throw B8XProtocolError.invalidWindLevel
             }
             return .wind(value, mode: 1, cold: status.coldLevel)
         case .cold(let value):
             try validateCurrentSettings(status)
-            guard (92...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
+            guard (1...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return .cold(value, mode: status.modeRaw, wind: status.windLevel)
         case .settings(let wind, let cold):
-            guard (4000...6000).contains(wind), wind % 100 == 0 else {
+            guard (1...6000).contains(wind) else {
                 throw B8XProtocolError.invalidWindLevel
             }
-            guard (92...255).contains(cold) else { throw B8XProtocolError.invalidColdLevel }
+            guard (1...255).contains(cold) else { throw B8XProtocolError.invalidColdLevel }
             return .settings(wind: wind, cold: cold)
         }
     }
