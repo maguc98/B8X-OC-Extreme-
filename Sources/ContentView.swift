@@ -450,7 +450,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     section("控制范围", note: "SAFE LIMITS")
                     diagnosticRow("风扇设定", "4,000–6,000 RPM")
-                    diagnosticRow("制冷原始档位", "92–255")
+                    diagnosticRow("制冷原始档位", "92–175")
                     Text("风扇控制上限固定为 6,000 RPM。制冷值是当前单字节协议原始值，不代表瓦数或温度；未经验证的扩展档位不会发送。")
                         .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
                 }
