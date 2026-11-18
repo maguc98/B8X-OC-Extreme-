@@ -7,6 +7,7 @@ struct LightStudioView: View {
     @ObservedObject var bluetooth: B8XBluetoothManager
 
     @State private var selectedMode = "多色旋转"
+    @State private var selectedTheme = "极光"
     @State private var selectedColor = Color.cyan
     @State private var selectedFavoriteIndex: Int? = 0
     @State private var favoriteColors: [Color] = [.cyan, .teal, .green]
@@ -36,6 +37,8 @@ struct LightStudioView: View {
             powerCard
 
             effectCard
+
+            themeCard
 
             colorCard
 
@@ -250,6 +253,59 @@ struct LightStudioView: View {
         }
     }
 
+    private var themeCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("主题皮肤", note: "THEME SKINS")
+            HStack(spacing: 9) {
+                themeOption(
+                    "极光",
+                    subtitle: "清透渐彩",
+                    colors: [.cyan, .mint, .purple, .pink]
+                )
+                themeOption(
+                    "Pandaer 联名",
+                    subtitle: "黑白限定预览",
+                    colors: [.black, .white, Color(red: 0.92, green: 0.88, blue: 0.79), .black]
+                )
+            }
+            protocolPendingCaption
+        }
+        .padding(15)
+        .background(.white, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 19, style: .continuous)
+                .stroke(LightPalette.line, lineWidth: 1)
+        }
+    }
+
+    private func themeOption(_ title: String, subtitle: String, colors: [Color]) -> some View {
+        Button {
+            selectedTheme = title
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 3) {
+                    ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                        Circle().fill(color).frame(maxWidth: .infinity).frame(height: 23)
+                    }
+                }
+                HStack(spacing: 5) {
+                    Text(title).font(.system(size: 9, weight: .bold))
+                    Spacer(minLength: 0)
+                    if selectedTheme == title {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
+                    }
+                }
+                Text(subtitle).font(.system(size: 8, weight: .medium))
+            }
+            .foregroundStyle(selectedTheme == title ? LightPalette.violetInk : LightPalette.ink)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selectedTheme == title ? LightPalette.lilac : LightPalette.neutral,
+                        in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var colorCard: some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
@@ -313,6 +369,7 @@ struct LightStudioView: View {
                 Spacer()
                 Button("重置预览") {
                     selectedMode = "多色旋转"
+                    selectedTheme = "极光"
                     selectedColor = .cyan
                     selectedFavoriteIndex = 0
                     favoriteColors = [.cyan, .teal, .green]
@@ -446,7 +503,7 @@ struct LightStudioView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "info.circle.fill")
                 .foregroundStyle(LightPalette.blueInk)
-            Text("现在只有灯效开关会真正控制 B8X。模式、颜色、速度和亮度均为本机预览设置，协议验证完成后才会开放设备同步。")
+            Text("B8X 实体按键双击也可切换灯效。现在只有灯效开关会真正控制设备；模式、主题、颜色、速度和亮度均为本机预览，协议验证完成后才会开放同步。")
                 .foregroundStyle(LightPalette.muted)
         }
         .font(.system(size: 8, weight: .medium))
@@ -466,6 +523,9 @@ struct LightStudioView: View {
     }
 
     private var previewColors: [Color] {
+        if selectedTheme == "Pandaer 联名" {
+            return [Color.black, .white, Color(red: 0.92, green: 0.88, blue: 0.79), .black]
+        }
         if selectedMode == "常亮" {
             return [selectedColor.opacity(0.5), selectedColor, selectedColor.opacity(0.85)]
         }
