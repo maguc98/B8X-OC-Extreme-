@@ -142,6 +142,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     func setMode(_ mode: Int) { send(.mode(mode)) }
     func setWind(_ value: Int) { send(.wind(value)) }
     func setCold(_ value: Int) { send(.cold(value)) }
+    func applySettings(wind: Int, cold: Int) { send(.settings(wind: wind, cold: cold)) }
 
     func configureThermalProtection(lowEnabled: Bool, highEnabled: Bool) {
         lowTemperatureProtectionEnabled = lowEnabled
