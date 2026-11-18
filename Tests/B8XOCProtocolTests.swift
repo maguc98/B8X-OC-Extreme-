@@ -71,6 +71,18 @@ final class B8XOCProtocolTests: XCTestCase {
                        Data([0x10, 0x00]))
     }
 
+    func testCombinedSettingsWriteBothTargetsAndReplaceAnomalousCoolingTelemetry() throws {
+        let anomalous = try B8XStatus.decode(sampleFrame(windHundreds: 60, coldLevel: 255))
+        let control = B8XControl.settings(wind: 5200, cold: 120)
+        XCTAssertEqual(try control.packet(using: anomalous),
+                       Data([0x20, 1, 120, 52, 0, 0, 92, 40, 0]))
+        let expected = try control.expectedStatus(from: anomalous)
+        let confirmed = try B8XStatus.decode(sampleFrame(mode: 0x10, windHundreds: 52, coldLevel: 120))
+        XCTAssertTrue(expected.matches(confirmed))
+        XCTAssertThrowsError(try B8XControl.settings(wind: 5210, cold: 120).packet(using: anomalous))
+        XCTAssertThrowsError(try B8XControl.settings(wind: 5200, cold: 176).packet(using: anomalous))
+    }
+
     func testRejectsFanSettingsAboveSixThousandRPM() throws {
         let status = try B8XStatus.decode(sampleFrame())
         XCTAssertNoThrow(try B8XControl.wind(4100).packet(using: status))
