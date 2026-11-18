@@ -195,6 +195,15 @@ struct LightStudioView: View {
                 Spacer(minLength: 0)
             }
             .font(.system(size: 8, weight: .medium))
+
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "waveform.path")
+                    .foregroundStyle(LightPalette.blueInk)
+                Text("最近控制反馈：\\(bluetooth.lastCommandText)")
+                    .foregroundStyle(LightPalette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.system(size: 8, weight: .medium))
         }
         .padding(15)
         .background(.white, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
