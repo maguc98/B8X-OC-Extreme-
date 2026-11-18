@@ -235,7 +235,18 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager,
                         didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
+        requestedControl = nil
+        awaitingConfirmation = nil
+        operationTimeout?.cancel()
+        operationTimeout = nil
+        isBusy = false
+        connectedPeripheral = nil
+        connectedName = nil
+        writeCharacteristic = nil
+        notifyCharacteristic = nil
+        notificationReady = false
         stateText = "连接失败：\(error?.localizedDescription ?? "未知错误")"
+        detailText = "连接失败，请确认散热器已开机并靠近手机"
     }
 
     func centralManager(_ central: CBCentralManager,
