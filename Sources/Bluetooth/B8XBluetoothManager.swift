@@ -183,6 +183,14 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
 
 extension B8XBluetoothManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        if central.state != .poweredOn {
+            isScanning = false
+            requestedControl = nil
+            awaitingConfirmation = nil
+            operationTimeout?.cancel()
+            operationTimeout = nil
+            isBusy = false
+        }
         switch central.state {
         case .poweredOn: stateText = "蓝牙已就绪"
         case .poweredOff: stateText = "蓝牙已关闭"
