@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var bluetooth = B8XBluetoothManager()
@@ -7,6 +8,7 @@ struct ContentView: View {
     @State private var coldTarget = 110.0
     @State private var fanDirty = false
     @State private var coldDirty = false
+    @State private var logsCopied = false
     @AppStorage("B8X.lowTemperatureProtectionEnabled") private var lowTemperatureProtectionEnabled = true
     @AppStorage("B8X.highTemperatureProtectionEnabled") private var highTemperatureProtectionEnabled = true
 
@@ -342,6 +344,14 @@ struct ContentView: View {
                     HStack {
                         section("原始状态帧", note: "RAW TELEMETRY")
                         Spacer()
+                        Button {
+                            copyDiagnosticLogs()
+                        } label: {
+                            Label(logsCopied ? "已复制" : "一键复制日志",
+                                  systemImage: logsCopied ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(logsCopied ? Studio.greenInk : Studio.blueInk)
+                        }
                         ShareLink(item: bluetooth.rawFrameHistory.joined(separator: "\n")) {
                             Label("导出抓包", systemImage: "square.and.arrow.up")
                                 .font(.system(size: 9, weight: .bold))
@@ -432,6 +442,47 @@ struct ContentView: View {
                         .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+    }
+
+    private func copyDiagnosticLogs() {
+        let status = bluetooth.status
+        let currentFrame = status?.raw.map { String(format: "%02X", $0) }.joined(separator: " ") ?? "无"
+        let lines = [
+            "B8X OC Extreme 诊断日志",
+            "导出时间：\\(Date().formatted(date: .numeric, time: .standard))",
+            "设备：\\(bluetooth.connectedName ?? "未连接")",
+            "连接状态：\\(bluetooth.stateText)",
+            "设备详情：\\(bluetooth.detailText)",
+            "最后指令：\\(bluetooth.lastCommandText)",
+            "",
+            "【设备信息】",
+            "型号：\\(bluetooth.modelNumber ?? "设备未公开")",
+            "制造商：\\(bluetooth.manufacturerName ?? "设备未公开")",
+            "固件版本：\\(bluetooth.firmwareRevision ?? "设备未公开")",
+            "",
+            "【当前状态】",
+            "原始帧：\\(currentFrame)",
+            "数据长度：\\(status?.raw.count ?? 0) bytes",
+            "模式：\\(status.map { String($0.modeRaw) } ?? "无")",
+            "风扇设定：\\(status.map { String($0.windLevel) } ?? "无")",
+            "实际转速：\\(status.map { String($0.fanRPM) } ?? "无")",
+            "制冷原始值：\\(status.map { String($0.coldLevel) } ?? "无")",
+            "帧差异：\\(bluetooth.statusFrameDeltaSummary)",
+            "",
+            "【最近状态帧】",
+            bluetooth.rawFrameHistory.isEmpty ? "无" : bluetooth.rawFrameHistory.joined(separator: "\\n"),
+            "",
+            "【GATT 服务与特征值】",
+            bluetooth.gattInventory,
+            "",
+            "【温度保护】",
+            bluetooth.thermalProtectionText
+        ]
+        UIPasteboard.general.string = lines.joined(separator: "\\n")
+        logsCopied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            logsCopied = false
         }
     }
 
