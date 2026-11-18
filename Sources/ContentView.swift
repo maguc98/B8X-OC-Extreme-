@@ -53,7 +53,7 @@ struct ContentView: View {
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
             fanTarget = min(max(Double(value.windLevel), 4000), 6000)
-            coldTarget = min(max(Double(value.coldLevel), 92), 175)
+            coldTarget = min(max(Double(value.coldLevel), 92), 255)
             fanDirty = false
             coldDirty = false
         }
@@ -186,38 +186,58 @@ struct ContentView: View {
                     }
                 }
                 Card {
-                    VStack(alignment: .leading, spacing: 11) {
-                        section("运行模式", note: "MODE")
-                        HStack(spacing: 9) {
-                            modeButton("自动调节", detail: "由设备管理风扇", icon: "sparkles", selected: s.modeRaw == 0) { bluetooth.setMode(0) }
-                            modeButton("手动控制", detail: "使用下方设定值", icon: "hand.raised.fill", selected: s.modeRaw == 1) { bluetooth.setMode(1) }
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            section("智能档位", note: "SMART MODE")
+                            Spacer()
+                            Text(s.modeRaw == 0 ? "AUTO" : "MANUAL")
+                                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                                .tracking(1).foregroundStyle(Studio.violetInk)
+                                .padding(.horizontal, 10).padding(.vertical, 6)
+                                .background(Studio.lilac, in: Capsule())
                         }
+                        HStack(spacing: 8) {
+                            modeButton("智能自动", detail: "由设备动态调节风扇", icon: "sparkles", selected: s.modeRaw == 0) { bluetooth.setMode(0) }
+                            modeButton("手动控制", detail: "按下方目标运行", icon: "slider.horizontal.3", selected: s.modeRaw == 1) { bluetooth.setMode(1) }
+                        }
+                        Text(s.modeRaw == 0 ? "当前由 B8X 自动管理风扇转速；写入自定义转速时会切换为手动模式。" : "当前为手动模式；统一写入会同时应用风扇转速和制冷档位。")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Card {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .top) {
-                            section("风扇转速", note: "FAN SPEED")
+                    VStack(alignment: .leading, spacing: 13) {
+                        HStack(alignment: .center) {
+                            HStack(spacing: 9) {
+                                Image(systemName: "fanblades.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Studio.blueInk)
+                                    .frame(width: 38, height: 38)
+                                    .background(Studio.sky, in: RoundedRectangle(cornerRadius: 12))
+                                section("风扇转速", note: "FAN SPEED")
+                            }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 1) {
-                                Text(Int(fanTarget).formatted()).font(.system(size: 24, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.blueInk)
-                                Text("RPM").font(.system(size: 8, weight: .heavy)).tracking(1).foregroundStyle(Studio.muted)
+                                Text(Int(fanTarget).formatted()).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.blueInk)
+                                Text("RPM · 目标").font(.system(size: 8, weight: .heavy)).tracking(0.6).foregroundStyle(Studio.muted)
                             }
+                        }
+                        HStack(spacing: 8) {
+                            miniMetric("设备回报", value: s.windLevel.formatted(), unit: "RPM", tint: Studio.ink)
+                            miniMetric("实际转速", value: s.fanRPM.formatted(), unit: "RPM", tint: Studio.blueInk)
                         }
                         Slider(value: $fanTarget, in: 4000...6000, step: 100) { editing in if editing { fanDirty = true } }.tint(Studio.blue)
                         HStack {
-                            Text("4,000 RPM"); Spacer(); Text("上限 6,000 RPM · 100 RPM 步进")
+                            Text("4,000"); Spacer(); Text("每格 100 RPM"); Spacer(); Text("6,000")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
-                        Text(s.modeRaw == 0 ? "应用固定转速时会自动切换到手动模式。参考项目验证的常规范围为 4,000–4,500 RPM；4,600–6,000 RPM 属于尚待本机实测的扩展区间。" : "已处于手动模式。参考项目验证的常规范围为 4,000–4,500 RPM；4,600–6,000 RPM 属于尚待本机实测的扩展区间。")
-                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
-                            .fixedSize(horizontal: false, vertical: true)
                         if s.windLevel > 6000 {
-                            Text("设备当前回报 \(s.windLevel) RPM，高于新上限。可先将风扇设定调低至 6,000 RPM 或以下。")
+                            Text("设备当前回报 \(s.windLevel) RPM，高于设定上限；写入时会调整到所选目标。")
                                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
                                 .padding(9).frame(maxWidth: .infinity, alignment: .leading).background(Studio.butter, in: RoundedRectangle(cornerRadius: 11))
                         }
-                        Text("目标转速将在下方统一写入。")
+                        Text("常规验证范围为 4,000–4,500 RPM；更高转速属于扩展区间，建议实机确认。")
                             .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Card {
@@ -251,33 +271,41 @@ struct ContentView: View {
                     }
                 }
                 Card {
-                    VStack(alignment: .leading, spacing: 10) {
-                        section("统一写入", note: "APPLY BOTH SETTINGS")
-                        Text("一次写入当前选择的风扇转速与制冷档位，并切换到手动模式。")
-                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
-                            .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            section("统一写入", note: "APPLY SETTINGS")
+                            Spacer()
+                            Label(bluetooth.isBusy ? "正在发送" : "一次应用", systemImage: bluetooth.isBusy ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(bluetooth.isBusy ? Studio.goldInk : Studio.greenInk)
+                        }
+                        HStack(spacing: 8) {
+                            applySummary(icon: "fanblades.fill", title: "风扇目标", value: "\(Int(fanTarget).formatted())", unit: "RPM", wash: Studio.sky, ink: Studio.blueInk)
+                            applySummary(icon: "snowflake", title: "制冷目标", value: "\(Int(coldTarget))", unit: "档", wash: Studio.mint, ink: Studio.greenInk)
+                        }
                         Button {
                             bluetooth.applySettings(wind: Int(fanTarget), cold: Int(coldTarget))
                         } label: {
-                            HStack {
-                                Image(systemName: "arrow.down.to.line")
-                                Text("写入转速与制冷档位")
+                            HStack(spacing: 9) {
+                                Image(systemName: bluetooth.isBusy ? "hourglass" : "arrow.down.to.line")
+                                Text(bluetooth.isBusy ? "正在等待设备确认…" : "写入设备")
                                 Spacer()
-                                Text("\(Int(fanTarget)) RPM · \(Int(coldTarget))")
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                Image(systemName: "arrow.right").font(.system(size: 11, weight: .bold))
                             }
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(14)
+                            .padding(.horizontal, 16).padding(.vertical, 15)
                             .frame(maxWidth: .infinity)
-                            .background(Studio.blueInk, in: RoundedRectangle(cornerRadius: 13))
+                            .background(bluetooth.isBusy ? Studio.muted : Studio.blueInk, in: RoundedRectangle(cornerRadius: 15))
                         }
                         .buttonStyle(.plain)
                         .disabled(bluetooth.isBusy)
-                        if s.coldLevel < 92 || s.coldLevel > 175 {
-                            Text("设备当前回报的制冷原始值为 \(s.coldLevel)，超出有效范围。统一写入会用上方选定的档位替换该值。")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(Studio.goldInk)
+                        Text("将两个目标一起写入，并切换到手动模式；界面会以设备回报作为最终状态。")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if s.coldLevel < 92 || s.coldLevel > 255 {
+                            Text("设备当前制冷原始值 \(s.coldLevel) 超出 92–255；本次写入将替换为上方目标档位。")
+                                .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -581,6 +609,39 @@ struct ContentView: View {
             Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(Studio.ink)
             Text(note).font(.system(size: 7, weight: .heavy, design: .rounded)).tracking(1.3).foregroundStyle(Studio.muted)
         }
+    }
+
+    private func miniMetric(_ title: String, value: String, unit: String, tint: Color) -> some View {
+        HStack(spacing: 5) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 8, weight: .medium)).foregroundStyle(Studio.muted)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(value).font(.system(size: 13, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(tint)
+                    Text(unit).font(.system(size: 7, weight: .bold)).foregroundStyle(Studio.muted)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Studio.neutral, in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    private func applySummary(icon: String, title: String, value: String, unit: String, wash: Color, ink: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(ink)
+                .frame(width: 30, height: 30).background(wash, in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 8, weight: .medium)).foregroundStyle(Studio.muted)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(value).font(.system(size: 15, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.ink)
+                    Text(unit).font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(9).frame(maxWidth: .infinity, alignment: .leading)
+        .background(wash.opacity(0.48), in: RoundedRectangle(cornerRadius: 13))
     }
 
     private func statusChip(_ title: String, icon: String, wash: Color, ink: Color) -> some View {
