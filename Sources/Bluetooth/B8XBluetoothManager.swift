@@ -10,15 +10,26 @@ struct DiscoveredDevice: Identifiable {
 }
 
 final class B8XBluetoothManager: NSObject, ObservableObject {
+    private let serviceID = CBUUID(string: "FFE0")
+    private let writeID = CBUUID(string: "FFE1")
+    private let notifyID = CBUUID(string: "FFE4")
+
     @Published private(set) var stateText = "等待蓝牙初始化"
     @Published private(set) var devices: [DiscoveredDevice] = []
     @Published private(set) var connectedName: String?
     @Published private(set) var detailText = "尚未连接设备"
-    @Published private(set) var discoveredCharacteristics: [String] = []
+    @Published private(set) var status: B8XStatus?
     @Published private(set) var isScanning = false
+    @Published private(set) var isBusy = false
+    @Published private(set) var lastCommandText = "尚未发送控制指令"
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
+    private var writeCharacteristic: CBCharacteristic?
+    private var notifyCharacteristic: CBCharacteristic?
+    private var requestedControl: B8XControl?
+    private var awaitingConfirmation: B8XStatusExpectation?
+    private var notificationReady = false
 
     override init() {
         super.init()
@@ -53,6 +64,74 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         guard let peripheral = connectedPeripheral else { return }
         central.cancelPeripheralConnection(peripheral)
     }
+
+    func refreshStatus() {
+        guard notificationReady else {
+            detailText = "请先连接 B8X 并完成通知订阅"
+            return
+        }
+        write(Data([0x13]))
+        detailText = "正在请求设备状态…"
+    }
+
+    func setLight(_ enabled: Bool) { send(.light(enabled)) }
+    func setMode(_ mode: Int) { send(.mode(mode)) }
+    func setWind(_ value: Int) { send(.wind(value)) }
+    func setCold(_ value: Int) { send(.cold(value)) }
+
+    private func send(_ control: B8XControl) {
+        guard notificationReady, !isBusy else { return }
+        guard let current = status else {
+            lastCommandText = "请先读取设备状态"
+            refreshStatus()
+            return
+        }
+        do {
+            _ = try control.expectedStatus(from: current)
+            requestedControl = control
+            awaitingConfirmation = nil
+            isBusy = true
+            lastCommandText = "正在读取最新状态，准备发送控制指令…"
+            write(Data([0x13]))
+        } catch {
+            lastCommandText = error.localizedDescription
+        }
+    }
+
+    private func write(_ data: Data) {
+        guard let peripheral = connectedPeripheral,
+              let characteristic = writeCharacteristic else {
+            detailText = "写入通道尚未就绪"
+            isBusy = false
+            return
+        }
+        peripheral.writeValue(data, for: characteristic, type: .withResponse)
+    }
+
+    private func handleStatus(_ newStatus: B8XStatus) {
+        status = newStatus
+        if let control = requestedControl {
+            do {
+                let packet = try control.packet(using: newStatus)
+                awaitingConfirmation = try control.expectedStatus(from: newStatus)
+                requestedControl = nil
+                lastCommandText = "指令已发送，等待设备状态确认…"
+                write(packet)
+                return
+            } catch {
+                requestedControl = nil
+                isBusy = false
+                lastCommandText = "控制指令未发送：\(error.localizedDescription)"
+                return
+            }
+        }
+        if let expected = awaitingConfirmation, expected.matches(newStatus) {
+            awaitingConfirmation = nil
+            isBusy = false
+            lastCommandText = "设备已回报确认，控制成功"
+        }
+        detailText = "已接收并解析 B8X 状态帧"
+    }
 }
 
 extension B8XBluetoothManager: CBCentralManagerDelegate {
@@ -75,21 +154,22 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         let advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let name = advertisedName ?? peripheral.name ?? "未命名设备"
         guard !devices.contains(where: { $0.id == peripheral.identifier }) else { return }
-        let item = DiscoveredDevice(id: peripheral.identifier,
-                                    name: name,
-                                    rssi: RSSI.intValue,
-                                    peripheral: peripheral)
-        devices.append(item)
+        devices.append(DiscoveredDevice(id: peripheral.identifier, name: name,
+                                        rssi: RSSI.intValue, peripheral: peripheral))
         devices.sort { $0.rssi > $1.rssi }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         connectedPeripheral = peripheral
         connectedName = peripheral.name ?? "B8X"
-        detailText = "已连接。正在读取 GATT 服务…"
-        discoveredCharacteristics.removeAll()
+        stateText = "已连接 \(connectedName ?? "B8X")"
+        detailText = "正在发现 B8X 服务…"
+        status = nil
+        writeCharacteristic = nil
+        notifyCharacteristic = nil
+        notificationReady = false
         peripheral.delegate = self
-        peripheral.discoverServices(nil)
+        peripheral.discoverServices([serviceID])
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -103,47 +183,88 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
                         error: Error?) {
         connectedPeripheral = nil
         connectedName = nil
+        writeCharacteristic = nil
+        notifyCharacteristic = nil
+        notificationReady = false
+        requestedControl = nil
+        awaitingConfirmation = nil
+        isBusy = false
+        status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
+        stateText = "设备已断开"
     }
 }
 
 extension B8XBluetoothManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error {
-            detailText = "读取服务失败：\(error.localizedDescription)"
+            detailText = "发现服务失败：\(error.localizedDescription)"
             return
         }
-        guard let services = peripheral.services, !services.isEmpty else {
-            detailText = "设备未公开可读取的 GATT 服务"
+        guard let service = peripheral.services?.first(where: { $0.uuid == serviceID }) else {
+            detailText = "未发现已验证的 B8X 服务 FFE0"
             return
         }
-        detailText = "发现 \(services.count) 个服务，正在枚举特征值…"
-        services.forEach { peripheral.discoverCharacteristics(nil, for: $0) }
+        peripheral.discoverCharacteristics([writeID, notifyID], for: service)
     }
 
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService,
                     error: Error?) {
         if let error {
-            detailText = "读取特征值失败：\(error.localizedDescription)"
+            detailText = "发现特征值失败：\(error.localizedDescription)"
             return
         }
-        let rows = (service.characteristics ?? []).map {
-            "\(service.uuid.uuidString) / \($0.uuid.uuidString) [\($0.properties.description)]"
+        for characteristic in service.characteristics ?? [] {
+            if characteristic.uuid == writeID { writeCharacteristic = characteristic }
+            if characteristic.uuid == notifyID { notifyCharacteristic = characteristic }
         }
-        discoveredCharacteristics.append(contentsOf: rows)
-        detailText = "GATT 枚举完成。当前仅执行发现，不发送控制指令。"
+        guard writeCharacteristic != nil, let notifyCharacteristic else {
+            detailText = "缺少 B8X 写入或通知特征值"
+            return
+        }
+        peripheral.setNotifyValue(true, for: notifyCharacteristic)
+        detailText = "正在订阅设备状态通知…"
     }
-}
 
-private extension CBCharacteristicProperties {
-    var description: String {
-        var values: [String] = []
-        if contains(.read) { values.append("read") }
-        if contains(.write) { values.append("write") }
-        if contains(.writeWithoutResponse) { values.append("writeNR") }
-        if contains(.notify) { values.append("notify") }
-        if contains(.indicate) { values.append("indicate") }
-        return values.isEmpty ? "无已知属性" : values.joined(separator: ",")
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateNotificationStateFor characteristic: CBCharacteristic,
+                    error: Error?) {
+        guard characteristic.uuid == notifyID else { return }
+        if let error {
+            detailText = "订阅状态通知失败：\(error.localizedDescription)"
+            return
+        }
+        notificationReady = characteristic.isNotifying
+        detailText = notificationReady ? "通知已订阅，正在读取设备状态…" : "设备状态通知未开启"
+        if notificationReady { refreshStatus() }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateValueFor characteristic: CBCharacteristic,
+                    error: Error?) {
+        guard characteristic.uuid == notifyID else { return }
+        if let error {
+            detailText = "读取状态失败：\(error.localizedDescription)"
+            return
+        }
+        guard let value = characteristic.value else { return }
+        do {
+            handleStatus(try B8XStatus.decode(value))
+        } catch {
+            detailText = "收到非状态数据：\(error.localizedDescription)"
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didWriteValueFor characteristic: CBCharacteristic,
+                    error: Error?) {
+        guard characteristic.uuid == writeID else { return }
+        if let error {
+            isBusy = false
+            requestedControl = nil
+            awaitingConfirmation = nil
+            lastCommandText = "写入失败：\(error.localizedDescription)"
+        }
     }
 }
