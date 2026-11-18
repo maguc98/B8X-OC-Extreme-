@@ -58,6 +58,8 @@ final class B8XOCProtocolTests: XCTestCase {
     func testRejectsInvalidFields() {
         XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(coldFraction: 10)))
         XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(light: 1)))
+        XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(windRemainder: 100)))
+        XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(fanRemainder: 100)))
     }
 
     func testControlPacketsStayWithinVerifiedRanges() throws {
@@ -82,5 +84,23 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertNoThrow(try B8XControl.light(true).packet(using: status))
         XCTAssertThrowsError(try B8XControl.wind(4200).packet(using: status))
         XCTAssertThrowsError(try B8XControl.cold(110).packet(using: status))
+    }
+
+    func testModeChangeCannotPreserveUnverifiedCurrentSettings() throws {
+        let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 46))
+        XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidFan))
+
+        let invalidCooling = try B8XStatus.decode(sampleFrame(coldLevel: 176))
+        XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidCooling))
+    }
+
+    func testStatusExpectationMatchesOnlyRequestedAndPreservedFields() throws {
+        let before = try B8XStatus.decode(sampleFrame())
+        let expectation = try B8XControl.wind(4300).expectedStatus(from: before)
+        let matching = try B8XStatus.decode(sampleFrame(windHundreds: 43))
+        let mismatching = try B8XStatus.decode(sampleFrame(windHundreds: 43, coldLevel: 111))
+
+        XCTAssertTrue(expectation.matches(matching))
+        XCTAssertFalse(expectation.matches(mismatching))
     }
 }
