@@ -131,3 +131,16 @@ Evidence and interpretation:
 - Device metadata is displayed as the literal labels `Model Number`, `Manufacturer Name`, and `Firmware Revision`, rather than actual values. Treat these as unresolved metadata-read/UI behavior, not verified model or firmware strings.
 
 Next safe experiment: clear capture history, record a baseline frame, double-press the physical B8X key exactly once, then request/record a fresh status frame. Repeat the single action several times and compare all offsets. Until a repeatable correlation is observed, do not assign offset 15 a lighting meaning and do not send writes to unknown fields.
+
+
+## User capture: 2026-11-18 21:37:32–21:38:02
+
+A second user-provided capture contains 31 consecutive 20-byte status frames. Key observations:
+- `byte[14]` remains `FF` throughout: the light-enabled state did not change in this capture.
+- `byte[15]` varies repeatedly through values including `03`, `05`, `04`, `06`, `10`, `11`, and `0B`. Several values recur in a repeating-looking sequence, but there is no controlled timestamp marker for the physical double-press in the capture. Its meaning remains unknown; do not decode it as a lighting mode yet.
+- `byte[8]` continues to vary from `00` to `09` and remains the cold-temperature fractional digit in the existing decoder.
+- `byte[3]` is `FF` (255) throughout this capture, whereas the known normal control range documented by the reference is 92–175. The app's prior control validator mistakenly allowed 92–255 and could preserve/send this anomalous value in non-light control packets. This has now been tightened: telemetry still displays the raw value 255, but mode, wind, and cooling control commands are blocked when the current reported cooling value is outside 92–175; requested cooling values are also limited to 92–175. Light on/off remains available because its packet does not preserve cooling settings.
+- `byte[9]` is `2A` (42°C) in the final frame. The high-temperature protection message can remain latched at 42°C because the current implementation clears that latch only below 42°C; the message is not proof that the final frame is at or above the 45°C trigger threshold.
+- Fan target remains 6000 RPM and measured RPM 5700 RPM in the final frame.
+
+This capture is not sufficient to prove that the physical button changed lighting mode or to identify a lighting write packet. For a valid correlation test, note the exact time of one physical double-press, capture at least 3 seconds before and after, and repeat the same single action. Avoid all fan/cooling/mode controls while `byte[3]` reports 255; do not attempt to normalize or rewrite this raw value without a verified device procedure.
