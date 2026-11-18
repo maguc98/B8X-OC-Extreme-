@@ -60,6 +60,11 @@ enum B8XControl {
     case cold(Int)
 
     func expectedStatus(from status: B8XStatus) throws -> B8XStatusExpectation {
+        if case .light = self {
+            // The light command is independent of the mode fields.
+        } else if status.modeRaw != 0 && status.modeRaw != 1 {
+            throw B8XProtocolError.unsupportedMode
+        }
         switch self {
         case .light(let enabled):
             return .light(enabled)
