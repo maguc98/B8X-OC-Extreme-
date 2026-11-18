@@ -41,6 +41,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     }
 
     func startScan() {
+        userRequestedDisconnect = false
         guard central.state == .poweredOn else {
             stateText = "请先开启 iPhone 蓝牙"
             return
