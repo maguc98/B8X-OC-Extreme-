@@ -32,6 +32,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var firmwareRevision: String?
     @Published private(set) var modelNumber: String?
     @Published private(set) var manufacturerName: String?
+    @Published private(set) var statusFrameDeltaSummary = "等待第二条状态帧进行对比"
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -48,6 +49,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var highTemperatureProtectionEnabled = true
     private var lowProtectionLatched = false
     private var highProtectionLatched = false
+    private var lastCapturedRawFrame: [UInt8]?
 
     override init() {
         super.init()
@@ -110,6 +112,12 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
         guard write(Data([0x13])) else { return }
         detailText = "正在请求设备状态…"
+    }
+
+    func clearRawFrameHistory() {
+        rawFrameHistory.removeAll()
+        lastCapturedRawFrame = nil
+        statusFrameDeltaSummary = "样本已清空，等待新的状态帧"
     }
 
     func setLight(_ enabled: Bool) { send(.light(enabled)) }
@@ -217,6 +225,16 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         status = newStatus
         let hex = newStatus.raw.map { String(format: "%02X", $0) }.joined(separator: " ")
         let stamp = Date().formatted(date: .omitted, time: .standard)
+        if let previous = lastCapturedRawFrame, previous.count == newStatus.raw.count {
+            let changes = zip(previous, newStatus.raw).enumerated().compactMap { index, pair -> String? in
+                guard pair.0 != pair.1 else { return nil }
+                return String(format: "byte[%02d] %02X→%02X", index, pair.0, pair.1)
+            }
+            statusFrameDeltaSummary = changes.isEmpty ? "与上一帧完全相同" : changes.joined(separator: " · ")
+        } else {
+            statusFrameDeltaSummary = "等待第二条状态帧进行对比"
+        }
+        lastCapturedRawFrame = newStatus.raw
         rawFrameHistory.insert("\(stamp)  \(hex)", at: 0)
         if rawFrameHistory.count > 64 {
             rawFrameHistory.removeLast(rawFrameHistory.count - 64)
@@ -315,7 +333,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         modelNumber = nil
         manufacturerName = nil
         gattInventory = "正在枚举设备公开的 GATT 服务…"
-        rawFrameHistory.removeAll()
+        clearRawFrameHistory()
         peripheral.delegate = self
         // Read-only discovery: enumerate services to identify standard
         // Device Information metadata and any advertised update service.
