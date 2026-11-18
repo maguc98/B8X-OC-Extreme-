@@ -20,6 +20,11 @@ targets:
         CFBundleDisplayName: "B8X OC"
         NSBluetoothAlwaysUsageDescription: "用于搜索并连接飞智 B8X 散热器。"
         UIUserInterfaceStyle: Automatic
+        GCSupportsControllerUserInteraction: true
+        GCSupportedGameControllers:
+          - ExtendedGamepad
+          - Gamepad
+          - MicroGamepad
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.maguc98.b8xoc
