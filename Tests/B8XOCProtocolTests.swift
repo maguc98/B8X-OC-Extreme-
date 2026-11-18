@@ -62,21 +62,23 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(fanRemainder: 100)))
     }
 
-    func testControlPacketsStayWithinVerifiedRanges() throws {
+    func testControlPacketsEncodeExpandedFanRangeAndByteCoolingValues() throws {
         let status = try B8XStatus.decode(sampleFrame())
-        XCTAssertEqual(try B8XControl.wind(4500).packet(using: status),
-                       Data([0x20, 1, 110, 45, 0, 0, 92, 40, 0]))
-        XCTAssertEqual(try B8XControl.cold(175).packet(using: status),
-                       Data([0x20, 1, 175, 42, 0, 0, 92, 40, 0]))
+        XCTAssertEqual(try B8XControl.wind(8000).packet(using: status),
+                       Data([0x20, 1, 110, 80, 0, 0, 92, 40, 0]))
+        XCTAssertEqual(try B8XControl.cold(255).packet(using: status),
+                       Data([0x20, 1, 255, 42, 0, 0, 92, 40, 0]))
         XCTAssertEqual(try B8XControl.light(false).packet(using: status),
                        Data([0x10, 0x00]))
     }
 
-    func testRejectsUnverifiedControlValues() throws {
+    func testRejectsValuesOutsideRepresentableRanges() throws {
         let status = try B8XStatus.decode(sampleFrame())
-        XCTAssertThrowsError(try B8XControl.wind(4600).packet(using: status))
-        XCTAssertThrowsError(try B8XControl.wind(4150).packet(using: status))
-        XCTAssertThrowsError(try B8XControl.cold(176).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.wind(4150).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.wind(8000).packet(using: status))
+        XCTAssertThrowsError(try B8XControl.wind(8001).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.cold(255).packet(using: status))
+        XCTAssertThrowsError(try B8XControl.cold(256).packet(using: status))
     }
 
     func testUnknownModeAllowsOnlyLightControl() throws {
@@ -87,10 +89,10 @@ final class B8XOCProtocolTests: XCTestCase {
     }
 
     func testModeChangeCannotPreserveUnverifiedCurrentSettings() throws {
-        let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 46))
+        let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 81))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidFan))
 
-        let invalidCooling = try B8XStatus.decode(sampleFrame(coldLevel: 176))
+        let invalidCooling = try B8XStatus.decode(sampleFrame(coldLevel: 255))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidCooling))
     }
 
