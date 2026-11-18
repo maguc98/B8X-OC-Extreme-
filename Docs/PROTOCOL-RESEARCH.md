@@ -222,15 +222,15 @@ References:
 ### Implementation decision
 
 - Keep all `0x50` LED writes, type 16/17 writes, and B6/B6X LED packet builders disabled in the B8X app.
-- A manually triggered diagnostic may send only the candidate read-only query `51 00`. This query is documented by B6/B6X research, not yet by B8X-specific evidence; it is never sent automatically.
-- A received `0x51` frame is recorded as a candidate response only. It does not by itself authorize `0x50` writes or prove the write payload layout. No response is inconclusive: firmware support and alternate response framing remain possible.
+- A manually triggered diagnostic may send a candidate read-only query `51 <current effect ID>` only when B8X status byte 15 matches one of the candidate LED type IDs. B6/B6X research documents `0x51` followed by the requested effect type; this is not yet B8X-specific evidence and is never sent automatically. Unknown IDs cause the probe to stop without writing.
+- Matching `0x51` frames are collected for up to three seconds to allow multi-packet responses. They are recorded as candidate responses only; they do not by themselves authorize `0x50` writes or prove the write payload layout. No response is inconclusive: firmware support and alternate response framing remain possible.
 - Do not assign B8X effect labels or type mappings by copying B6X labels. The user's B8X UI effect names still need B8X-specific mapping evidence.
 - Preserve the existing confirmed B8X on/off path (`10 FF` / `10 00`).
 - The next useful proof is a B8X-specific official-client call path or a controlled B8X GATT capture showing a `50` command followed by matching `51` readback. Until then, treat the B6/B6X API as a research lead, not an executable B8X protocol.
 
 ### Manual read-only probe added to diagnostics
 
-The diagnostics page now exposes a user-triggered `51 00` query. The BLE manager captures an incoming notification beginning with `0x51`, records its raw bytes in the diagnostic export, and labels a 20-byte result as a *candidate* B6/B6X-style response. The UI explicitly says that the query response does not prove B8X `0x50` write support. The probe is not run on connection and sends no lighting configuration.
+The diagnostics page now exposes a user-triggered query for the effect ID currently reported at B8X status byte 15 (candidate form: `51 <effect ID>`). The BLE manager sends nothing when byte 15 is not in the allow-list, then collects matching `0x51` notification frames for three seconds and includes them in the diagnostic export. This follows the B6/B6X documented query shape but remains unverified on B8X; the response does not prove B8X `0x50` write support. The probe is not run on connection and sends no lighting configuration.
 
 This is deliberately a discovery step, not the requested final lighting controller. Its purpose is to establish whether B8X exposes the same readback family before any hardware-changing command is considered.
 

@@ -481,7 +481,7 @@ struct ContentView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     HStack {
                         Button { bluetooth.probeLightingProtocol() } label: {
-                            actionPill("只读查询灯效配置（51 00）", icon: "magnifyingglass")
+                            actionPill("只读查询当前灯效（51 + 编号）", icon: "magnifyingglass")
                         }
                         .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
                         Spacer(minLength: 0)

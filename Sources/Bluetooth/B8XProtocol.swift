@@ -58,8 +58,17 @@ struct B8XStatus: Equatable {
 /// user explicitly starts the diagnostic probe. No LED write command is
 /// exposed until a B8X response has been independently validated.
 enum B8XLightingProtocolProbe {
-    static let readCurrentConfiguration = Data([0x51, 0x00])
     static let responseCommand: UInt8 = 0x51
+    static let candidateEffectIDs: Set<UInt8> = [
+        0x03, 0x04, 0x05, 0x06, 0x0B, 0x0C, 0x10, 0x11
+    ]
+
+    /// B6/B6X documents 0x51 followed by the effect type to read.
+    /// This is only a candidate for B8X and must be explicitly requested.
+    static func readConfiguration(forEffect effectID: UInt8) -> Data? {
+        guard candidateEffectIDs.contains(effectID) else { return nil }
+        return Data([responseCommand, effectID])
+    }
 }
 
 enum B8XProtocolError: LocalizedError {

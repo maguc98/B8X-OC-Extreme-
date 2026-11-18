@@ -69,8 +69,13 @@ final class B8XOCProtocolTests: XCTestCase {
                        Data([0x10, 0xFF]))
     }
 
-    func testLEDConfigurationReadProbeIsExplicitAndReadOnlyCandidate() {
-        XCTAssertEqual(B8XLightingProtocolProbe.readCurrentConfiguration, Data([0x51, 0x00]))
+    func testLEDConfigurationReadProbeUsesCurrentCandidateEffectID() {
+        XCTAssertEqual(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x0B),
+                       Data([0x51, 0x0B]))
+        XCTAssertEqual(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x10),
+                       Data([0x51, 0x10]))
+        XCTAssertNil(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x00))
+        XCTAssertNil(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x7F))
         XCTAssertEqual(B8XLightingProtocolProbe.responseCommand, 0x51)
     }
 
