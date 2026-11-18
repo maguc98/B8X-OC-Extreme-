@@ -22,6 +22,11 @@ struct ContentView: View {
                         case .diagnostics: diagnostics
                         }
                     }
+                    .id(tab)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
                     .padding(.horizontal, 19)
                     .padding(.top, 12)
                     .padding(.bottom, 28)
