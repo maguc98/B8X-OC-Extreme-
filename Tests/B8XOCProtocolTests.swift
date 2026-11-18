@@ -12,7 +12,8 @@ final class B8XOCProtocolTests: XCTestCase {
         fanHundreds: UInt8 = 41,
         fanRemainder: UInt8 = 25,
         light: UInt8 = 255,
-        coldLevel: UInt8 = 110
+        coldLevel: UInt8 = 110,
+        lightingEffect: UInt8 = 0
     ) -> Data {
         var bytes = [UInt8](repeating: 0, count: 20)
         bytes[0] = 0x13
@@ -26,6 +27,7 @@ final class B8XOCProtocolTests: XCTestCase {
         bytes[12] = fanHundreds
         bytes[13] = fanRemainder
         bytes[14] = light
+        bytes[15] = lightingEffect
         return Data(bytes)
     }
 
@@ -40,6 +42,31 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertEqual(status.modeRaw, 1)
         XCTAssertEqual(status.coldLevel, 110)
         XCTAssertEqual(status.raw, [UInt8](frame))
+    }
+
+
+    func testCandidateLightingEffectNamesAreReadOnlyTelemetryHints() throws {
+        let candidates: [(UInt8, String)] = [
+            (0x03, "流光"),
+            (0x04, "切换"),
+            (0x05, "呼吸"),
+            (0x06, "渐变"),
+            (0x0B, "常亮"),
+            (0x0C, "变频旋转"),
+            (0x10, "多色旋转"),
+            (0x11, "跳动")
+        ]
+
+        for (code, name) in candidates {
+            let status = try B8XStatus.decode(sampleFrame(lightingEffect: code))
+            XCTAssertEqual(status.raw[15], code)
+            XCTAssertEqual(status.candidateLightingEffectName, name)
+        }
+
+        let unknown = try B8XStatus.decode(sampleFrame(lightingEffect: 0x7F))
+        XCTAssertNil(unknown.candidateLightingEffectName)
+        XCTAssertEqual(try B8XControl.light(true).packet(using: unknown),
+                       Data([0x10, 0xFF]))
     }
 
     func testLightControlPacketsMatchB8XReferenceAndConfirmReportedState() throws {
