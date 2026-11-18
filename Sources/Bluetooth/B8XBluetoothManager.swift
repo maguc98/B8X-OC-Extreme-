@@ -22,6 +22,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var isBusy = false
     @Published private(set) var lastCommandText = "尚未发送控制指令"
+    @Published private(set) var thermalProtectionText = "温度保护待机"
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -34,6 +35,10 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var reconnectWorkItem: DispatchWorkItem?
     private var userRequestedDisconnect = false
     private let rememberedPeripheralKey = "B8X.rememberedPeripheralUUID"
+    private var lowTemperatureProtectionEnabled = true
+    private var highTemperatureProtectionEnabled = true
+    private var lowProtectionLatched = false
+    private var highProtectionLatched = false
 
     override init() {
         super.init()
@@ -102,6 +107,37 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     func setMode(_ mode: Int) { send(.mode(mode)) }
     func setWind(_ value: Int) { send(.wind(value)) }
     func setCold(_ value: Int) { send(.cold(value)) }
+
+    func configureThermalProtection(lowEnabled: Bool, highEnabled: Bool) {
+        lowTemperatureProtectionEnabled = lowEnabled
+        highTemperatureProtectionEnabled = highEnabled
+        if !lowEnabled { lowProtectionLatched = false }
+        if !highEnabled { highProtectionLatched = false }
+        evaluateThermalProtection(using: status)
+    }
+
+    private func evaluateThermalProtection(using current: B8XStatus?) {
+        guard let current, notificationReady, !isBusy, requestedControl == nil, awaitingConfirmation == nil else { return }
+        if lowTemperatureProtectionEnabled {
+            if current.coldTemperature > 7 { lowProtectionLatched = false }
+            if current.coldTemperature <= 5, !lowProtectionLatched {
+                lowProtectionLatched = true
+                thermalProtectionText = "低温保护触发：制冷已请求降至最低档 92"
+                send(.cold(92))
+                return
+            }
+        }
+        if highTemperatureProtectionEnabled {
+            if current.hotTemperature < 42 { highProtectionLatched = false }
+            if current.hotTemperature >= 45, !highProtectionLatched {
+                highProtectionLatched = true
+                thermalProtectionText = "高温保护触发：风扇已请求升至 6000 RPM"
+                send(.wind(6000))
+                return
+            }
+        }
+        if !lowProtectionLatched && !highProtectionLatched { thermalProtectionText = "温度正常，保护监测中" }
+    }
 
     private func send(_ control: B8XControl) {
         guard notificationReady, !isBusy else { return }
@@ -201,6 +237,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             lastCommandText = "设备已回报确认，控制成功"
         }
         detailText = "已接收并解析 B8X 状态帧"
+        evaluateThermalProtection(using: newStatus)
     }
 }
 
