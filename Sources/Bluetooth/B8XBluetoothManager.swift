@@ -31,6 +31,9 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var awaitingConfirmation: B8XStatusExpectation?
     private var notificationReady = false
     private var operationTimeout: DispatchWorkItem?
+    private var reconnectWorkItem: DispatchWorkItem?
+    private var userRequestedDisconnect = false
+    private let rememberedPeripheralKey = "B8X.rememberedPeripheralUUID"
 
     override init() {
         super.init()
@@ -44,7 +47,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
         devices.removeAll()
         isScanning = true
-        stateText = "正在搜索附近蓝牙设备…"
+        stateText = "正在自动寻找 B8X…"
         central.scanForPeripherals(withServices: nil,
                                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
     }
@@ -56,16 +59,35 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     }
 
     func connect(_ device: DiscoveredDevice) {
+        userRequestedDisconnect = false
+        reconnectWorkItem?.cancel()
         stopScan()
-        stateText = "正在连接 \(device.name)…"
+        stateText = "正在连接 \\(device.name)…"
         central.connect(device.peripheral, options: nil)
     }
 
     func disconnect() {
+        userRequestedDisconnect = true
+        reconnectWorkItem?.cancel()
         guard let peripheral = connectedPeripheral else { return }
         central.cancelPeripheralConnection(peripheral)
     }
 
+    private func isB8X(_ name: String) -> Bool {
+        name.uppercased().replacingOccurrences(of: " ", with: "").contains("B8X")
+    }
+
+    private func resumeAutomaticConnection() {
+        guard !userRequestedDisconnect, connectedPeripheral == nil, central.state == .poweredOn else { return }
+        if let remembered = UserDefaults.standard.string(forKey: rememberedPeripheralKey),
+           let uuid = UUID(uuidString: remembered),
+           let peripheral = central.retrievePeripherals(withIdentifiers: [uuid]).first {
+            stateText = "正在重新连接已记住的 B8X…"
+            central.connect(peripheral, options: nil)
+        } else {
+            startScan()
+        }
+    }
     func refreshStatus() {
         guard notificationReady else {
             detailText = "请先连接 B8X 并完成通知订阅"
@@ -192,7 +214,9 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
             isBusy = false
         }
         switch central.state {
-        case .poweredOn: stateText = "蓝牙已就绪"
+        case .poweredOn:
+            stateText = "蓝牙已就绪，正在自动寻找 B8X…"
+            resumeAutomaticConnection()
         case .poweredOff: stateText = "蓝牙已关闭"
         case .unauthorized: stateText = "蓝牙权限未授权"
         case .unsupported: stateText = "此设备不支持蓝牙 LE"
@@ -212,6 +236,11 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         devices.append(DiscoveredDevice(id: peripheral.identifier, name: name,
                                         rssi: RSSI.intValue, peripheral: peripheral))
         devices.sort { $0.rssi > $1.rssi }
+        if isB8X(name), connectedPeripheral == nil, !userRequestedDisconnect {
+            stateText = "已识别 \\(name)，正在自动连接…"
+            stopScan()
+            central.connect(peripheral, options: nil)
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -221,6 +250,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         awaitingConfirmation = nil
         isBusy = false
         connectedPeripheral = peripheral
+        UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: rememberedPeripheralKey)
         connectedName = peripheral.name ?? "B8X"
         stateText = "已连接 \(connectedName ?? "B8X")"
         detailText = "正在发现 B8X 服务…"
@@ -246,7 +276,8 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         notifyCharacteristic = nil
         notificationReady = false
         stateText = "连接失败：\(error?.localizedDescription ?? "未知错误")"
-        detailText = "连接失败，请确认散热器已开机并靠近手机"
+        detailText = "连接失败，将自动重新搜索 B8X"
+        scheduleAutomaticReconnect()
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -265,6 +296,15 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
         stateText = "设备已断开"
+        if !userRequestedDisconnect { scheduleAutomaticReconnect() }
+    }
+
+    private func scheduleAutomaticReconnect() {
+        guard !userRequestedDisconnect else { return }
+        reconnectWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.resumeAutomaticConnection() }
+        reconnectWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
     }
 }
 
