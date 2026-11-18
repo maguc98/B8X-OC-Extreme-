@@ -339,7 +339,16 @@ struct ContentView: View {
             }
             Card {
                 VStack(alignment: .leading, spacing: 11) {
-                    section("原始状态帧", note: "RAW TELEMETRY")
+                    HStack {
+                        section("原始状态帧", note: "RAW TELEMETRY")
+                        Spacer()
+                        ShareLink(item: bluetooth.rawFrameHistory.joined(separator: "\n")) {
+                            Label("导出抓包", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(Studio.blueInk)
+                        }
+                        .disabled(bluetooth.rawFrameHistory.isEmpty)
+                    }
                     if let s = bluetooth.status {
                         Text(s.raw.map { String(format: "%02X", $0) }.joined(separator: " "))
                             .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(Studio.violetInk).lineSpacing(4)
@@ -353,8 +362,49 @@ struct ContentView: View {
                     } else {
                         Text("连接设备后，这里会显示原始数据帧。").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)
                     }
-                    Button { bluetooth.refreshStatus() } label: { actionPill("重新读取状态", icon: "arrow.clockwise") }
-                        .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
+                    HStack {
+                        Text("最近 \(bluetooth.rawFrameHistory.count) 条状态通知（最多保留 64 条）")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(Studio.muted)
+                        Spacer()
+                        Button { bluetooth.refreshStatus() } label: { actionPill("读取最新状态", icon: "arrow.clockwise") }
+                            .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
+                    }
+                    if bluetooth.rawFrameHistory.isEmpty {
+                        Text("暂无历史帧。读取状态或切换散热器实体灯效后，可再次读取并导出前后数据。")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(Studio.muted)
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(bluetooth.rawFrameHistory.prefix(8).enumerated()), id: \.offset) { _, frame in
+                                Text(frame)
+                                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(Studio.violetInk)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(10)
+                        .background(Studio.neutral, in: RoundedRectangle(cornerRadius: 11))
+                    }
+                }
+            }
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    section("设备服务与固件信息", note: "GATT / DEVICE INFORMATION")
+                    diagnosticRow("型号", bluetooth.modelNumber ?? "设备未公开")
+                    diagnosticRow("制造商", bluetooth.manufacturerName ?? "设备未公开")
+                    diagnosticRow("固件版本", bluetooth.firmwareRevision ?? "设备未公开")
+                    Divider().overlay(Studio.line)
+                    Text(bluetooth.gattInventory)
+                        .font(.system(size: 8, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Studio.muted)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("仅枚举服务并读取标准设备信息特征值；不会向未知服务发送命令。发现升级服务也不代表已经掌握安全刷写流程。")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(Studio.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Card {
