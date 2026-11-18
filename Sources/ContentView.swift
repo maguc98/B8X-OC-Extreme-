@@ -57,7 +57,8 @@ struct ContentView: View {
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
-            write confirmation sync
+            fanTarget = min(max(Double(value.windLevel), 1), 6000)
+            coldTarget = min(max(Double(value.coldLevel), 1), 255)
             fanDirty = false
             coldDirty = false
         }
