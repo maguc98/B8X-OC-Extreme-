@@ -488,6 +488,7 @@ private enum AppTab: CaseIterable {
         case .controls: return "slider.horizontal.3"
         case .devices: return "dot.radiowaves.left.and.right"
         case .diagnostics: return "waveform.path.ecg"
+        case .gameCenter: return "gamecontroller.fill"
         }
     }
     var tint: Color {
