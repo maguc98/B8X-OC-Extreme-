@@ -10,7 +10,8 @@ Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phon
 - Subscribe to status notifications and decode the 20-byte status frame.
 - Display cold-side and hot-side temperatures, measured fan RPM, light state, mode, and the raw frame in hexadecimal.
 - Read the latest status before each control write and wait for a matching device notification before reporting success.
-- Fan setting is capped at 6,000 RPM with 100 RPM steps. The public reference validates the normal range through 4,500 RPM; 4,600–6,000 RPM is an experimental extension, not confirmed on this hardware. Applying a fixed RPM target also selects manual mode.
+- Fan target range is 1–6,000 RPM with 1 RPM resolution and no fixed slider step. The public reference validates ordinary settings only through 4,500 RPM; values below 4,000 RPM and above 4,500 RPM are experimental and need hardware verification. Applying a fixed RPM target also selects manual mode.
+- Cooling target range is 1–255 raw levels with 1-level resolution. The public reference validates 92–175; values outside that range are experimental and are not guaranteed across B8X firmware revisions. Slider movement provides rate-limited haptic feedback.
 - Run protocol unit tests with SwiftPM in GitHub Actions before the Xcode iOS build and unsigned IPA packaging.
 
 ## Current protocol reference
@@ -22,8 +23,8 @@ Implementation is based on the public reference project: https://github.com/shao
 - Notify characteristic: FFE4
 - Status query byte: 13
 - Status frame: 20 bytes, starting with 13
-- Fan setting: 4000–6000 RPM, encoded as base-100 plus remainder. Telemetry is still displayed as reported by the device.
-- Cooling setting: reference-validated raw protocol range 92–175. This is not a wattage, temperature, or percentage.
+- Fan setting: 1–6000 RPM, encoded as base-100 plus remainder. The app accepts integer RPM values; device support for the full range and 1 RPM changes must be verified on hardware.
+- Cooling setting: app target range 1–255, encoded as one byte. The public reference validates 92–175; values outside it are experimental. This is not a wattage, temperature, or percentage.
 - Modes: automatic and manual.
 
 The app permits reducing an already-reported fan setting above 6,000 RPM to 6,000 RPM or less. Other controls are blocked while the reported fan setting remains above the app's new ceiling, so another control cannot silently preserve an above-limit fan setting.
@@ -52,9 +53,10 @@ Requires Swift 5.9+, macOS, Xcode, and XcodeGen.
 
 ## Safety and limitations
 
-- The 4600–6000 RPM fan range is experimental and not confirmed by the public reference implementation; the app-side ceiling remains 6000 RPM.
+- Fan settings outside the public reference's ordinary range (below 4000 or above 4500 RPM) are experimental; the app-side limits are 1–6000 RPM.
+- Cooling settings outside the reference-validated 92–175 range are experimental; the app-side limits are 1–255.
 - No firmware update, factory reset, or thermal-protection bypass is implemented.
-- The reference project has not established that higher fan or cooling values are supported by all B8X firmware revisions.
+- The reference project has not established that the full fan or cooling ranges are supported by all B8X firmware revisions.
 - Keep the cooler's original thermal protections enabled.
 - Watch for condensation when cooling below the ambient dew point.
 
