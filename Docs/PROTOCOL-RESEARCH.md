@@ -221,10 +221,18 @@ References:
 
 ### Implementation decision
 
-- Do not enable `0x50` writes, `0x51` reads, type 16/17, or any B6/B6X LED packet builder in the B8X app yet.
-- Do not assign B8X mode/type mappings by copying B6X labels. The user's B8X UI effect labels need a B8X-specific mapping.
+- Keep all `0x50` LED writes, type 16/17 writes, and B6/B6X LED packet builders disabled in the B8X app.
+- A manually triggered diagnostic may send only the candidate read-only query `51 00`. This query is documented by B6/B6X research, not yet by B8X-specific evidence; it is never sent automatically.
+- A received `0x51` frame is recorded as a candidate response only. It does not by itself authorize `0x50` writes or prove the write payload layout. No response is inconclusive: firmware support and alternate response framing remain possible.
+- Do not assign B8X effect labels or type mappings by copying B6X labels. The user's B8X UI effect names still need B8X-specific mapping evidence.
 - Preserve the existing confirmed B8X on/off path (`10 FF` / `10 00`).
 - The next useful proof is a B8X-specific official-client call path or a controlled B8X GATT capture showing a `50` command followed by matching `51` readback. Until then, treat the B6/B6X API as a research lead, not an executable B8X protocol.
+
+### Manual read-only probe added to diagnostics
+
+The diagnostics page now exposes a user-triggered `51 00` query. The BLE manager captures an incoming notification beginning with `0x51`, records its raw bytes in the diagnostic export, and labels a 20-byte result as a *candidate* B6/B6X-style response. The UI explicitly says that the query response does not prove B8X `0x50` write support. The probe is not run on connection and sends no lighting configuration.
+
+This is deliberately a discovery step, not the requested final lighting controller. Its purpose is to establish whether B8X exposes the same readback family before any hardware-changing command is considered.
 
 
 ### B8X status byte 15: strong LED-effect-ID hypothesis (not yet confirmed)
