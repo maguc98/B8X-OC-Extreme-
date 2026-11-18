@@ -48,12 +48,12 @@ struct ContentView: View {
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
             if !fanDirty { fanTarget = min(max(Double(value.windLevel), 4000), 6000) }
-            if !coldDirty { coldTarget = min(max(Double(value.coldLevel), 92), 255) }
+            if !coldDirty { coldTarget = min(max(Double(value.coldLevel), 92), 175) }
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
             fanTarget = min(max(Double(value.windLevel), 4000), 6000)
-            coldTarget = min(max(Double(value.coldLevel), 92), 255)
+            coldTarget = min(max(Double(value.coldLevel), 92), 175)
             fanDirty = false
             coldDirty = false
         }
@@ -216,12 +216,8 @@ struct ContentView: View {
                                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
                                 .padding(9).frame(maxWidth: .infinity, alignment: .leading).background(Studio.butter, in: RoundedRectangle(cornerRadius: 11))
                         }
-                        HStack {
-                            Text(fanDirty ? "有未应用的更改" : "设备设定 \(s.windLevel) RPM").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)
-                            Spacer()
-                            Button { bluetooth.setWind(Int(fanTarget)) } label: { actionPill("应用转速") }
-                                .disabled(bluetooth.isBusy || Int(fanTarget) == s.windLevel)
-                        }
+                        Text("目标转速将在下方统一写入。")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                     }
                 }
                 Card {
@@ -231,15 +227,43 @@ struct ContentView: View {
                             Spacer()
                             Text("\(Int(coldTarget))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
                         }
-                        Slider(value: $coldTarget, in: 92...255, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
+                        Slider(value: $coldTarget, in: 92...175, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
                         HStack {
-                            Text("92"); Spacer(); Text("255 · 原始档位上限")
+                            Text("92"); Spacer(); Text("175 · 安全控制上限")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
-                        HStack {
-                            Text(coldDirty ? "有未应用的更改" : "设备设定 \(s.coldLevel)").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)
-                            Spacer()
-                            Button { bluetooth.setCold(Int(coldTarget)) } label: { actionPill("应用档位") }
-                                .disabled(bluetooth.isBusy || Int(coldTarget) == s.coldLevel)
+                        Text("目标制冷档位将在下方统一写入。")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                    }
+                }
+                Card {
+                    VStack(alignment: .leading, spacing: 10) {
+                        section("统一写入", note: "APPLY BOTH SETTINGS")
+                        Text("一次写入当前选择的风扇转速与制冷档位，并切换到手动模式。")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button {
+                            bluetooth.applySettings(wind: Int(fanTarget), cold: Int(coldTarget))
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.down.to.line")
+                                Text("写入转速与制冷档位")
+                                Spacer()
+                                Text("\(Int(fanTarget)) RPM · \(Int(coldTarget))")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                            }
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(14)
+                            .frame(maxWidth: .infinity)
+                            .background(Studio.blueInk, in: RoundedRectangle(cornerRadius: 13))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(bluetooth.isBusy)
+                        if s.coldLevel < 92 || s.coldLevel > 175 {
+                            Text("设备当前回报的制冷原始值为 \(s.coldLevel)，超出有效范围。统一写入会用上方选定的安全档位替换该异常值。")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(Studio.goldInk)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
