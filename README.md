@@ -10,7 +10,7 @@ Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phon
 - Display cold-side and hot-side temperatures, measured fan RPM, light state, mode, and the raw frame in hexadecimal.
 - Read the latest status before each control write.
 - Wait for a matching device notification before reporting a control as confirmed.
-- Run protocol unit tests in GitHub Actions before packaging the unsigned IPA.
+- Run protocol unit tests with SwiftPM in GitHub Actions before the Xcode iOS build and unsigned IPA packaging.
 
 ## Current protocol reference
 
@@ -45,11 +45,12 @@ The artifact is unsigned and is not directly installable until signed with a val
 
 ## Local build
 
-Requires macOS, Xcode, and XcodeGen.
+Requires Swift 5.9+, macOS, Xcode, and XcodeGen.
 
+    swift test
     brew install xcodegen
     xcodegen generate
-    xcodebuild -project B8XOC.xcodeproj -scheme B8XOC -sdk iphoneos build
+    xcodebuild -project B8XOC.xcodeproj -scheme B8XOC -configuration Release -sdk iphoneos build
 
 ## Safety and limitations
 
