@@ -39,11 +39,11 @@ The final three fixed bytes and preserved byte are reproduced from the public re
 
 The public reference documents only these normal settings:
 
-- Fan setting: 4000–4500 RPM in steps of 100.
-- Cooling raw setting: 92–175.
+- Fan setting: the packet encodes a base-100 byte and a remainder byte. The app now exposes 4000–8000 RPM with 1 RPM steps as an experimental range; actual support above the previously documented 4500 RPM has not been verified on hardware.
+- Cooling raw setting: a single byte at offset 3, so the current packet format can represent 0–255. The app exposes 92–255 experimentally. A requested value of 300 cannot be represented in this byte and is rejected; a wider encoding must be discovered before 300 can be sent.
 - Mode: 0 automatic, 1 manual.
 
-**Do not interpret the cooling raw setting as watts, temperature, or a percentage.** This repository deliberately rejects values outside the reference ranges. No evidence currently establishes a safe or supported overclock range.
+**Do not interpret the cooling raw setting as watts, temperature, or a percentage.** The expanded ranges are experimental controls, not evidence that the firmware or hardware supports them. No temperature-protection bypass is implemented.
 
 ## How to capture useful device evidence
 
