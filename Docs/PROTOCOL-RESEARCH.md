@@ -37,14 +37,16 @@ Byte 8 is validated as 0–9, and byte 14 must be either 0 or 255. Other bytes a
 
 The final three fixed bytes and preserved byte are reproduced from the public reference implementation. Their hardware meaning has not been independently established here.
 
-The current app control limits are:
+The current app control limits (updated after the 2026-11-18 one-unit control change) are:
 
-- Fan setting: 4000–6000 RPM with 100 RPM steps. The public B8X reference implementation validates the normal range only through 4500 RPM in 100 RPM increments; 4600–6000 RPM is an app-capped experimental extension and is not confirmed on this hardware. Applying a fixed fan target now sets mode 1 (manual) in the same command packet.
-- If the device reports a current fan setting above 6000 RPM but no higher than 8000 RPM, the fan command path permits a new fan command within 4000–6000 RPM so the user can lower it. While the reported setting remains above 6000 RPM, mode and cooling changes are blocked because their packets would preserve that above-limit fan setting.
-- Cooling raw setting: a single byte at offset 3. The reference implementation validates 92–175; the app now restricts the control slider and encoder to that range. Do not infer watts, temperature, or percentage from this raw value.
+- Fan setting: 1–6000 RPM, encoded as byte 4 × 100 + byte 5. The app no longer imposes 100 RPM steps; the slider has no fixed step and command values are rounded to the nearest whole RPM. This encoding can represent 1 RPM increments, but that does not prove the hardware will physically run at every value. The public B8X reference validates ordinary settings only through 4500 RPM; values below 4000 and above 4500 RPM are experimental and require real-device verification. Applying a fixed fan target sets mode 1 (manual) in the same command packet.
+- If the device reports a current fan setting above 6000 RPM but no higher than 8000 RPM, the fan command path permits a lower target within 1–6000 RPM so the user can reduce it. While the reported setting remains above 6000 RPM, mode and cooling changes are blocked because their packets would preserve that above-limit fan setting.
+- Cooling raw setting: a single byte at offset 3. The app accepts 1–255 with one-level resolution and no fixed slider step. The public reference validates 92–175; values below 92 or above 175 are experimental and are not guaranteed on all hardware/firmware. Do not infer watts, temperature, or percentage from this raw value.
+- Slider adjustment emits rate-limited iOS selection haptics while the user drags either control.
+- Low-temperature protection (cold side ≤ 5°C) now requests the minimum cooling raw value 1. This is an application request only; the cooler's own firmware protections remain authoritative.
 - Mode: 0 automatic, 1 manual.
 
-The public reference project documents the B8X control protocol; the 6000 RPM application limit is a conservative app-side cap, not a claim that the hardware cannot report or otherwise support a higher value.
+The app's 1 RPM / 1 raw-level resolution describes its command encoding and UI granularity, not a verified mechanical operating range. Confirm the lower values on real B8X hardware and stop testing if the fan stalls or temperatures behave unexpectedly.
 
 **Do not interpret the cooling raw setting as watts, temperature, or a percentage.** No temperature-protection bypass is implemented.
 
@@ -63,7 +65,7 @@ Please redact Bluetooth identifiers or other personal identifiers before sharing
 
 ## Safety boundaries
 
-- Keep fan targets at or below the app's 6000 RPM ceiling. The 4600–6000 RPM extension is not validated by the public reference; do not treat it as a confirmed device capability.
+- Keep fan targets at or below the app's 6000 RPM ceiling. The public reference validates ordinary settings through 4500 RPM; both lower-than-4000 and higher-than-4500 settings need real-device confirmation.
 - Do not bypass the cooler's firmware thermal limits.
 - Stop testing if temperatures behave unexpectedly, the fan stalls, or the cooler becomes unstable.
 - Cooling below the ambient dew point can cause condensation and damage the phone.
