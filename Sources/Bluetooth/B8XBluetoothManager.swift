@@ -33,6 +33,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var modelNumber: String?
     @Published private(set) var manufacturerName: String?
     @Published private(set) var statusFrameDeltaSummary = "等待第二条状态帧进行对比"
+    @Published private(set) var physicalActionMarkers: [String] = []
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -116,8 +117,25 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
 
     func clearRawFrameHistory() {
         rawFrameHistory.removeAll()
+        physicalActionMarkers.removeAll()
         lastCapturedRawFrame = nil
         statusFrameDeltaSummary = "样本已清空，等待新的状态帧"
+    }
+
+    func markPhysicalDoublePress() {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let timestamp = formatter.string(from: Date())
+        let latestFrame = rawFrameHistory.first ?? "尚无状态帧"
+        let marker = "DOUBLE_PRESS \(timestamp) | frameCount=\(rawFrameHistory.count) | latest=\(latestFrame)"
+        physicalActionMarkers.insert(marker, at: 0)
+        if physicalActionMarkers.count > 20 { physicalActionMarkers.removeLast() }
+    }
+
+    var captureExportText: String {
+        let markers = physicalActionMarkers.isEmpty ? "无动作标记" : physicalActionMarkers.reversed().joined(separator: "\\n")
+        let frames = rawFrameHistory.reversed().joined(separator: "\\n")
+        return "【实体按键动作标记】\\n\(markers)\\n\\n【状态帧（新→旧）】\\n\(frames)"
     }
 
     func setLight(_ enabled: Bool) { send(.light(enabled)) }
