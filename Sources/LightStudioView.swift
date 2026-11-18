@@ -4,10 +4,11 @@ import SwiftUI
 /// and local-only preview controls. Only the on/off command is currently
 /// known to be valid for the B8X BLE protocol.
 struct LightStudioView: View {
-    let bluetooth: B8XBluetoothManager
+    @ObservedObject var bluetooth: B8XBluetoothManager
 
     @State private var selectedMode = "多色旋转"
     @State private var selectedColor = Color.cyan
+    @State private var selectedFavoriteIndex: Int? = 0
     @State private var favoriteColors: [Color] = [.cyan, .teal, .green]
     @State private var previewSpeed = 0.52
     @State private var previewBrightness = 0.92
@@ -263,13 +264,14 @@ struct LightStudioView: View {
                 ForEach(Array(favoriteColors.enumerated()), id: \.offset) { index, color in
                     Button {
                         selectedColor = color
+                        selectedFavoriteIndex = index
                     } label: {
                         Circle()
                             .fill(color)
                             .frame(width: 34, height: 34)
                             .overlay {
-                                Circle().stroke(.white, lineWidth: selectedColor == color ? 3 : 1)
-                                    .padding(selectedColor == color ? 2 : 0)
+                                Circle().stroke(.white, lineWidth: selectedFavoriteIndex == index ? 3 : 1)
+                                    .padding(selectedFavoriteIndex == index ? 2 : 0)
                             }
                             .overlay {
                                 Circle().stroke(LightPalette.line, lineWidth: 1)
@@ -283,7 +285,7 @@ struct LightStudioView: View {
                     .accessibilityLabel("选择颜色，长按移除")
                 }
 
-                ColorPicker("自定义颜色", selection: $selectedColor, supportsOpacity: false)
+                ColorPicker("自定义颜色", selection: Binding(get: { selectedColor }, set: { selectedColor = $0; selectedFavoriteIndex = nil }), supportsOpacity: false)
                     .labelsHidden()
                     .frame(width: 35, height: 35)
                     .overlay {
@@ -304,9 +306,22 @@ struct LightStudioView: View {
                 .disabled(favoriteColors.count >= 8)
             }
 
-            Text("长按收藏色块可移除；加号可收藏当前颜色。")
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(LightPalette.muted)
+            HStack {
+                Text("长按收藏色块可移除；加号可收藏当前颜色。")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(LightPalette.muted)
+                Spacer()
+                Button("重置预览") {
+                    selectedMode = "多色旋转"
+                    selectedColor = .cyan
+                    selectedFavoriteIndex = 0
+                    favoriteColors = [.cyan, .teal, .green]
+                    previewSpeed = 0.52
+                    previewBrightness = 0.92
+                }
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(LightPalette.violetInk)
+            }
 
             protocolPendingCaption
         }
