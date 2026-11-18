@@ -352,7 +352,7 @@ struct ContentView: View {
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(logsCopied ? Studio.greenInk : Studio.blueInk)
                         }
-                        ShareLink(item: bluetooth.rawFrameHistory.joined(separator: "\n")) {
+                        ShareLink(item: bluetooth.captureExportText) {
                             Label("导出抓包", systemImage: "square.and.arrow.up")
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Studio.blueInk)
@@ -383,8 +383,21 @@ struct ContentView: View {
                                 .foregroundStyle(Studio.muted)
                         }
                         .disabled(bluetooth.rawFrameHistory.isEmpty)
+                        Button { bluetooth.markPhysicalDoublePress() } label: { actionPill("标记刚刚双击", icon: "hand.tap") }
+                            .disabled(bluetooth.connectedName == nil)
                         Button { bluetooth.refreshStatus() } label: { actionPill("读取最新状态", icon: "arrow.clockwise") }
                             .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
+                    }
+                    if !bluetooth.physicalActionMarkers.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("实体按键动作标记（点击标记按钮后立即双击）")
+                                .font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
+                            ForEach(bluetooth.physicalActionMarkers.prefix(5), id: \\.self) { marker in
+                                Text(marker).font(.system(size: 8, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(Studio.coral).textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text("与上一帧的字节差异（索引从 0 开始）")
@@ -457,6 +470,7 @@ struct ContentView: View {
         let rpm = status.map { String($0.fanRPM) } ?? "无"
         let cold = status.map { String($0.coldLevel) } ?? "无"
         let history = bluetooth.rawFrameHistory.isEmpty ? "无" : bluetooth.rawFrameHistory.joined(separator: "\n")
+        let actionMarkers = bluetooth.physicalActionMarkers.isEmpty ? "无" : bluetooth.physicalActionMarkers.reversed().joined(separator: "\n")
         let lines = [
             "B8X OC Extreme 诊断日志",
             "导出时间：\(Date().formatted(date: .numeric, time: .standard))",
@@ -478,6 +492,9 @@ struct ContentView: View {
             "实际转速：\(rpm)",
             "制冷原始值：\(cold)",
             "帧差异：\(bluetooth.statusFrameDeltaSummary)",
+            "",
+            "【实体按键动作标记】",
+            actionMarkers,
             "",
             "【最近状态帧】",
             history,
