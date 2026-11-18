@@ -7,6 +7,7 @@ on:
     paths:
       - "Sources/**"
       - "Tests/**"
+      - "Package.swift"
       - "project.yml"
       - ".github/workflows/build-ios.yml"
 
@@ -29,17 +30,11 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Run protocol unit tests
+        run: swift test
+
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Run protocol unit tests
-        run: |
-          xcodebuild test \
-            -project B8XOC.xcodeproj \
-            -scheme B8XOC \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -derivedDataPath build/TestDerivedData \
-            CODE_SIGNING_ALLOWED=NO
 
       - name: Build unsigned app
         run: |
