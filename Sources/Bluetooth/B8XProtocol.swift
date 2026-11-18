@@ -59,6 +59,7 @@ enum B8XControl {
     case mode(Int)
     case wind(Int)
     case cold(Int)
+    case settings(wind: Int, cold: Int)
 
     private func validateCurrentSettings(_ status: B8XStatus, allowFanReductionFromAboveLimit: Bool = false) throws {
         guard status.modeRaw == 0 || status.modeRaw == 1 else {
@@ -94,6 +95,12 @@ enum B8XControl {
             try validateCurrentSettings(status)
             guard (92...175).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return .cold(value, mode: status.modeRaw, wind: status.windLevel)
+        case .settings(let wind, let cold):
+            guard (4000...6000).contains(wind), wind % 100 == 0 else {
+                throw B8XProtocolError.invalidWindLevel
+            }
+            guard (92...175).contains(cold) else { throw B8XProtocolError.invalidColdLevel }
+            return .settings(wind: wind, cold: cold)
         }
     }
 
@@ -115,6 +122,10 @@ enum B8XControl {
             return Data([0x20, UInt8(status.modeRaw), UInt8(value),
                          UInt8(status.windLevel / 100), UInt8(status.windLevel % 100),
                          status.raw[6], 92, 40, 0])
+        case .settings(let wind, let cold):
+            return Data([0x20, 1, UInt8(cold),
+                         UInt8(wind / 100), UInt8(wind % 100),
+                         status.raw[6], 92, 40, 0])
         }
     }
 }
@@ -124,6 +135,7 @@ enum B8XStatusExpectation {
     case mode(Int, wind: Int, cold: Int)
     case wind(Int, mode: Int, cold: Int)
     case cold(Int, mode: Int, wind: Int)
+    case settings(wind: Int, cold: Int)
 
     func matches(_ status: B8XStatus) -> Bool {
         switch self {
@@ -135,6 +147,8 @@ enum B8XStatusExpectation {
             return status.windLevel == wind && status.modeRaw == mode && status.coldLevel == cold
         case .cold(let cold, let mode, let wind):
             return status.coldLevel == cold && status.modeRaw == mode && status.windLevel == wind
+        case .settings(let wind, let cold):
+            return status.windLevel == wind && status.coldLevel == cold && status.modeRaw == 1
         }
     }
 }
