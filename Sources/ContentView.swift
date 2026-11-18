@@ -634,29 +634,33 @@ private struct FanGauge: View {
     let actualRPM: Int
     let targetRPM: Int
     private let sweep: CGFloat = 280.0 / 360.0
+    private let scaleMaximum = 5000.0
 
+    // The illuminated arc is one measurement only: actual RPM / 5,000 RPM.
     private var fraction: CGFloat {
-        CGFloat(min(max(Double(actualRPM) / 5000.0, 0), 1))
+        CGFloat(min(max(Double(actualRPM) / scaleMaximum, 0), 1))
     }
 
     var body: some View {
         ZStack {
+            // Unreached portion of the 0–5,000 RPM scale.
             Circle()
                 .trim(from: 0, to: sweep)
                 .stroke(B8XPalette.track, style: StrokeStyle(lineWidth: 13, lineCap: .round))
                 .rotationEffect(.degrees(130))
+
+            // A single dopamine-pink arc; no green segment or multi-sensor implication.
             Circle()
                 .trim(from: 0, to: sweep * fraction)
-                .stroke(
-                    AngularGradient(colors: [B8XPalette.cyan.opacity(0.45), B8XPalette.cyan, B8XPalette.green], center: .center, startAngle: .degrees(130), endAngle: .degrees(410)),
-                    style: StrokeStyle(lineWidth: 13, lineCap: .round)
-                )
+                .stroke(B8XPalette.pink, style: StrokeStyle(lineWidth: 13, lineCap: .round))
                 .rotationEffect(.degrees(130))
-                .shadow(color: B8XPalette.cyan.opacity(0.32), radius: 8)
+                .shadow(color: B8XPalette.pink.opacity(0.5), radius: 9)
+
             GaugeTicks()
-                .stroke(B8XPalette.muted.opacity(0.32), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                .stroke(B8XPalette.muted.opacity(0.42), style: StrokeStyle(lineWidth: 1, lineCap: .round))
                 .padding(1)
-            VStack(spacing: 3) {
+
+            VStack(spacing: 4) {
                 Text("ACTUAL FAN SPEED")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(1.1)
@@ -667,19 +671,26 @@ private struct FanGauge: View {
                         .monospacedDigit()
                         .foregroundStyle(B8XPalette.primaryText)
                     Text("RPM")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(B8XPalette.cyan)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(B8XPalette.pink)
                 }
                 Text("目标 \(targetRPM.formatted()) RPM")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(B8XPalette.muted)
+                    .foregroundStyle(B8XPalette.primaryText.opacity(0.72))
                     .padding(.top, 2)
+                HStack(spacing: 5) {
+                    Circle().fill(B8XPalette.pink).frame(width: 5, height: 5)
+                    Text("实际转速进度 · 0–5,000 RPM")
+                        .font(.system(size: 8, weight: .medium, design: .monospaced))
+                        .foregroundStyle(B8XPalette.muted)
+                }
+                .padding(.top, 3)
             }
-            .offset(y: 1)
+            .offset(y: 2)
         }
         .frame(width: 214, height: 214)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("实际风扇转速 \(actualRPM) RPM，目标 \(targetRPM) RPM")
+        .accessibilityLabel("实际风扇转速 \(actualRPM) RPM，量程 0 至 5000 RPM，目标 \(targetRPM) RPM")
     }
 }
 
@@ -719,17 +730,19 @@ private struct StatusPill: View {
 }
 
 private enum B8XPalette {
-    static let primaryText = Color(red: 0.93, green: 0.95, blue: 0.99)
-    static let muted = Color(red: 0.53, green: 0.58, blue: 0.68)
-    static let cyan = Color(red: 0.21, green: 0.87, blue: 1.00)
-    static let green = Color(red: 0.25, green: 0.88, blue: 0.55)
-    static let amber = Color(red: 1.00, green: 0.70, blue: 0.27)
-    static let red = Color(red: 1.00, green: 0.37, blue: 0.34)
-    static let ink = Color(red: 0.02, green: 0.08, blue: 0.11)
-    static let card = Color(red: 0.075, green: 0.09, blue: 0.125).opacity(0.96)
-    static let surfaceRaised = Color(red: 0.105, green: 0.125, blue: 0.17)
-    static let stroke = Color.white.opacity(0.075)
-    static let track = Color.white.opacity(0.09)
+    // Dopamine accents: vivid pink, electric blue, violet and lemon.
+    static let primaryText = Color(red: 0.97, green: 0.95, blue: 1.00)
+    static let muted = Color(red: 0.61, green: 0.57, blue: 0.72)
+    static let cyan = Color(red: 0.20, green: 0.82, blue: 1.00)
+    static let pink = Color(red: 1.00, green: 0.28, blue: 0.67)
+    static let green = Color(red: 0.70, green: 0.43, blue: 1.00)
+    static let amber = Color(red: 1.00, green: 0.78, blue: 0.22)
+    static let red = Color(red: 1.00, green: 0.38, blue: 0.48)
+    static let ink = Color(red: 0.07, green: 0.025, blue: 0.10)
+    static let card = Color(red: 0.085, green: 0.065, blue: 0.13).opacity(0.97)
+    static let surfaceRaised = Color(red: 0.13, green: 0.095, blue: 0.19)
+    static let stroke = Color(red: 0.78, green: 0.55, blue: 1.0).opacity(0.13)
+    static let track = Color.white.opacity(0.10)
 
     static func temperature(_ value: Double) -> Color {
         switch value {
