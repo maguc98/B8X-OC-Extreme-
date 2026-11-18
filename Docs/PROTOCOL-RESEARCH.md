@@ -114,3 +114,20 @@ Therefore:
 - A discovered GATT service with an unfamiliar UUID is evidence only that the service is advertised; it is not proof that it is a DFU service.
 - Standard Device Information firmware revision (2A26), if exposed, is safe to display as metadata but does not imply an update method.
 - Do not send guessed DFU commands, switch the cooler into an unknown boot mode, or attempt firmware writes until a B8X-specific firmware package, target compatibility, checksum/signature requirements, packet/acknowledgement sequence, interruption behavior, and recovery path are independently established.
+
+
+## User capture: 2026-11-18 21:34:54–21:35:07
+
+A user-provided diagnostic capture from a connected device named Flydigi B8X contains 14 consecutive 20-byte status frames. The final frame is:
+
+`13 00 12 5C 3C 00 06 FF 03 2D 5C E9 39 00 FF 03 01 02 00 00`
+
+Evidence and interpretation:
+- Offset 8 varies through values such as 09, 07, 03 and is already decoded by this implementation as the cold-side temperature decimal digit. It must not be treated as an unassigned lighting field.
+- Offset 7 and offset 8 jointly form the cold-side temperature reading under the existing decoder; offset 9 is the hot-side temperature integer.
+- Offset 14 remains FF in this capture, consistent with the existing light-enabled flag.
+- Offset 15 varies across the capture (observed values include 06, 0B, 11, 10, and 03). Its meaning remains unknown. This capture alone does not establish a relationship with lighting effects because it does not include a timestamped physical lighting-mode change boundary or a controlled before/after pair.
+- The final decoded fan setting is 6000 RPM and measured fan RPM is 5700 RPM. The device reports the high-temperature protection message and a 6000 RPM fan request; do not infer from this log alone that the cooler physically reached the target.
+- Device metadata is displayed as the literal labels `Model Number`, `Manufacturer Name`, and `Firmware Revision`, rather than actual values. Treat these as unresolved metadata-read/UI behavior, not verified model or firmware strings.
+
+Next safe experiment: clear capture history, record a baseline frame, double-press the physical B8X key exactly once, then request/record a fresh status frame. Repeat the single action several times and compare all offsets. Until a repeatable correlation is observed, do not assign offset 15 a lighting meaning and do not send writes to unknown fields.
