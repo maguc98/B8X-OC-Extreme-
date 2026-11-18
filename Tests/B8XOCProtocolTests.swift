@@ -69,6 +69,11 @@ final class B8XOCProtocolTests: XCTestCase {
                        Data([0x10, 0xFF]))
     }
 
+    func testLEDConfigurationReadProbeIsExplicitAndReadOnlyCandidate() {
+        XCTAssertEqual(B8XLightingProtocolProbe.readCurrentConfiguration, Data([0x51, 0x00]))
+        XCTAssertEqual(B8XLightingProtocolProbe.responseCommand, 0x51)
+    }
+
     func testLightControlPacketsMatchB8XReferenceAndConfirmReportedState() throws {
         let before = try B8XStatus.decode(sampleFrame(light: 255))
         let turnOff = B8XControl.light(false)
