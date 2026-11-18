@@ -73,6 +73,21 @@ Please redact Bluetooth identifiers or other personal identifiers before sharing
 - Cooling below the ambient dew point can cause condensation and damage the phone.
 
 
+## Independent B8X implementation cross-check (2026-11-18)
+
+A second public implementation dedicated specifically to the B8X was inspected: [shaoyou11/ha-flydigi-b8x](https://github.com/shaoyou11/ha-flydigi-b8x). Its README states that it has been tested on real B8X hardware. Its protocol module and session implementation independently use the same GATT endpoints as this app (FFE0 service, FFE1 write, FFE4 notify), the one-byte status query `13`, the 20-byte status frame, and the light on/off packets `10 FF` / `10 00`. Its light entity deliberately exposes only on/off and explicitly avoids guessed RGB frames. Its tests cover the status decoder, on/off packet bytes, and physical state confirmation.
+
+This independent implementation corroborates the existing iOS app's transport and light power-switch implementation. It does **not** provide an RGB/effect/speed/brightness packet. Its protocol source also contains no B8X lighting-effect write function. The BS1/BS2 RGB protocol remains a different device family and must not be copied into B8X.
+
+The official App Store version history says B8X gained an always-on lighting mode in Game Center 5.1.39 (2025-06-10). This proves that the official app exposed an always-on feature, but does not identify whether it is selected by a dedicated BLE command, by cycling the device's internal effect list, or by another app/device interaction. The only safe conclusion is that the capability exists in the official app; its B8X wire encoding remains undocumented by the inspected public implementation.
+
+Research decision:
+- Keep the verified B8X power switch (`10 FF` / `10 00`) enabled.
+- Keep the eight visual effect choices, color/theme selection, speed, and brightness explicitly marked as local preview only.
+- Do not send candidate values to offset 15 or any unknown command IDs.
+- Do not port BS1/BS2/BS3 RGB packet builders to B8X.
+- Continue static analysis of the official Android client and its B8X-specific code path for the 5.1.39 always-on feature before implementing any effect command.
+
 ## B8X lighting and firmware research
 
 The official Game Center App Store version history records B8X always-on lighting in version 5.1.39 (2025-06-10) and B8X co-branded skins in versions 5.1.39 / 5.2.0. The official B8X help page also documents double-pressing the physical button to switch lighting effects. The accompanying user-provided screenshot shows the Game Center lighting page exposing these effect labels: variable-speed rotation, flowing light, breathing, gradient, switching, multicolor rotation, jumping, and steady; it also shows color selection/favorites, speed and brightness controls.
