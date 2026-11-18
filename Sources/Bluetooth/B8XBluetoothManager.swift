@@ -30,6 +30,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var requestedControl: B8XControl?
     private var awaitingConfirmation: B8XStatusExpectation?
     private var notificationReady = false
+    private var confirmationTimeout: DispatchWorkItem?
 
     override init() {
         super.init()
@@ -86,6 +87,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             refreshStatus()
             return
         }
+        confirmationTimeout?.cancel()
+        confirmationTimeout = nil
         do {
             _ = try control.expectedStatus(from: current)
             requestedControl = control
@@ -117,6 +120,15 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
                 requestedControl = nil
                 lastCommandText = "指令已发送，等待设备状态确认…"
                 write(packet)
+                let timeout = DispatchWorkItem { [weak self] in
+                    guard let self, self.awaitingConfirmation != nil else { return }
+                    self.awaitingConfirmation = nil
+                    self.isBusy = false
+                    self.lastCommandText = "设备确认超时。请刷新状态核对实际值，不要连续重复发送。"
+                    self.refreshStatus()
+                }
+                confirmationTimeout = timeout
+                DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timeout)
                 return
             } catch {
                 requestedControl = nil
@@ -127,6 +139,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
         if let expected = awaitingConfirmation, expected.matches(newStatus) {
             awaitingConfirmation = nil
+            confirmationTimeout?.cancel()
+            confirmationTimeout = nil
             isBusy = false
             lastCommandText = "设备已回报确认，控制成功"
         }
@@ -188,6 +202,8 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         notificationReady = false
         requestedControl = nil
         awaitingConfirmation = nil
+        confirmationTimeout?.cancel()
+        confirmationTimeout = nil
         isBusy = false
         status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
@@ -264,6 +280,8 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             isBusy = false
             requestedControl = nil
             awaitingConfirmation = nil
+            confirmationTimeout?.cancel()
+            confirmationTimeout = nil
             lastCommandText = "写入失败：\(error.localizedDescription)"
         }
     }
