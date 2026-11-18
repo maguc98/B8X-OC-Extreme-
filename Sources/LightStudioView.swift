@@ -369,7 +369,7 @@ struct LightStudioView: View {
                         .foregroundStyle(LightPalette.blueInk)
                 }
                 Slider(value: $previewBrightness, in: 0...1)
-                    .tint(LightPalette.blue)
+                    .tint(LightPalette.blueInk)
                 HStack {
                     Text("柔和")
                     Spacer()
