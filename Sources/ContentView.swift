@@ -491,7 +491,7 @@ struct ContentView: View {
                         .foregroundStyle(Studio.goldInk)
                         .fixedSize(horizontal: false, vertical: true)
                     if let probeFrame = bluetooth.lightingProtocolProbeRawFrame {
-                        Text("候选回包：\\(probeFrame)")
+                        Text("候选回包：\(probeFrame)")
                             .font(.system(size: 8, weight: .medium, design: .monospaced))
                             .foregroundStyle(Studio.violetInk)
                             .textSelection(.enabled)
