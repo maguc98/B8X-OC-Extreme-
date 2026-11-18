@@ -4,6 +4,10 @@ struct ContentView: View {
     @StateObject private var bluetooth = B8XBluetoothManager()
     @State private var windSelection = 4000.0
     @State private var coldSelection = 92.0
+    // Keep the user's draft values separate from incoming BLE telemetry.
+    // A draft remains pinned until the device confirms the corresponding command.
+    @State private var hasWindDraft = false
+    @State private var hasColdDraft = false
 
     var body: some View {
         NavigationStack {
@@ -28,9 +32,26 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
         .onChange(of: bluetooth.status) { status in
-            guard let status else { return }
-            windSelection = Double(status.windLevel)
-            coldSelection = Double(status.coldLevel)
+            guard let status else {
+                hasWindDraft = false
+                hasColdDraft = false
+                return
+            }
+            if !hasWindDraft { windSelection = Double(status.windLevel) }
+            if !hasColdDraft { coldSelection = Double(status.coldLevel) }
+        }
+        .onChange(of: bluetooth.lastCommandText) { message in
+            // Only release the local slider draft after a positive device acknowledgement.
+            guard message == "设备已回报确认，控制成功",
+                  let status = bluetooth.status else { return }
+            if hasWindDraft {
+                windSelection = Double(status.windLevel)
+                hasWindDraft = false
+            }
+            if hasColdDraft {
+                coldSelection = Double(status.coldLevel)
+                hasColdDraft = false
+            }
         }
     }
 
@@ -150,8 +171,10 @@ struct ContentView: View {
                         .monospacedDigit()
                         .foregroundStyle(.cyan)
                 }
-                Slider(value: $windSelection, in: 4000...4500, step: 100)
-                    .tint(.cyan)
+                Slider(value: $windSelection, in: 4000...4500, step: 100, onEditingChanged: { editing in
+                    if editing { hasWindDraft = true }
+                })
+                .tint(.cyan)
                 Button("应用风扇设定") { bluetooth.setWind(Int(windSelection)) }
                     .buttonStyle(.bordered)
                     .disabled(bluetooth.isBusy || Int(windSelection) == status.windLevel)
@@ -165,8 +188,10 @@ struct ContentView: View {
                         .monospacedDigit()
                         .foregroundStyle(.cyan)
                 }
-                Slider(value: $coldSelection, in: 92...175, step: 1)
-                    .tint(.cyan)
+                Slider(value: $coldSelection, in: 92...175, step: 1, onEditingChanged: { editing in
+                    if editing { hasColdDraft = true }
+                })
+                .tint(.cyan)
                 Button("应用制冷设定") { bluetooth.setCold(Int(coldSelection)) }
                     .buttonStyle(.bordered)
                     .disabled(bluetooth.isBusy || Int(coldSelection) == status.coldLevel)
