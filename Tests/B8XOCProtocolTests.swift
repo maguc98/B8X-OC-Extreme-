@@ -42,6 +42,20 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertEqual(status.raw, [UInt8](frame))
     }
 
+    func testLightControlPacketsMatchB8XReferenceAndConfirmReportedState() throws {
+        let before = try B8XStatus.decode(sampleFrame(light: 255))
+        let turnOff = B8XControl.light(false)
+        XCTAssertEqual(try turnOff.packet(using: before), Data([0x10, 0x00]))
+        let afterOff = try B8XStatus.decode(sampleFrame(light: 0))
+        XCTAssertTrue(try turnOff.expectedStatus(from: before).matches(afterOff))
+
+        let beforeOff = try B8XStatus.decode(sampleFrame(light: 0))
+        let turnOn = B8XControl.light(true)
+        XCTAssertEqual(try turnOn.packet(using: beforeOff), Data([0x10, 0xFF]))
+        let afterOn = try B8XStatus.decode(sampleFrame(light: 255))
+        XCTAssertTrue(try turnOn.expectedStatus(from: beforeOff).matches(afterOn))
+    }
+
     func testAutomaticModeDetectionForThermalProtection() throws {
         let automatic = try B8XStatus.decode(sampleFrame(mode: 0x00))
         let manual = try B8XStatus.decode(sampleFrame(mode: 0x10))
