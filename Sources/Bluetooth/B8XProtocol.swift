@@ -48,7 +48,7 @@ enum B8XProtocolError: LocalizedError {
         case .invalidFields: return "状态帧包含无效字段"
         case .unsupportedMode: return "设备返回了未验证的运行模式"
         case .invalidWindLevel: return "风扇设定必须在 4000–6000 RPM 范围内并按 100 RPM 步进"
-        case .invalidColdLevel: return "制冷设定必须在 92–175 范围内"
+        case .invalidColdLevel: return "制冷设定必须在 92–255 范围内"
         case .missingStatus: return "尚未读取设备状态"
         }
     }
@@ -69,7 +69,7 @@ enum B8XControl {
         guard fanRange.contains(status.windLevel) else {
             throw B8XProtocolError.invalidWindLevel
         }
-        guard (92...175).contains(status.coldLevel) else {
+        guard (92...255).contains(status.coldLevel) else {
             throw B8XProtocolError.invalidColdLevel
         }
     }
@@ -93,13 +93,13 @@ enum B8XControl {
             return .wind(value, mode: 1, cold: status.coldLevel)
         case .cold(let value):
             try validateCurrentSettings(status)
-            guard (92...175).contains(value) else { throw B8XProtocolError.invalidColdLevel }
+            guard (92...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return .cold(value, mode: status.modeRaw, wind: status.windLevel)
         case .settings(let wind, let cold):
             guard (4000...6000).contains(wind), wind % 100 == 0 else {
                 throw B8XProtocolError.invalidWindLevel
             }
-            guard (92...175).contains(cold) else { throw B8XProtocolError.invalidColdLevel }
+            guard (92...255).contains(cold) else { throw B8XProtocolError.invalidColdLevel }
             return .settings(wind: wind, cold: cold)
         }
     }
