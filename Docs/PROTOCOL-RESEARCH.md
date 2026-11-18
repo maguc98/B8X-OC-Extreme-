@@ -21,14 +21,14 @@ The reference implementation expects a 20-byte frame beginning with `13`. The iO
 | 0 | Frame marker, `13` |
 | 2, high nibble | Mode: 0 automatic, 1 manual |
 | 3 | Cooling raw setting |
-| 4–5 | Fan setting: byte 4 × 100 + byte 5 |
+| 4–5 | Fan setting: byte 4 × 100 + byte 5; byte 5 must be 0–99 |
 | 7 | Signed cold-side temperature integer |
 | 8 | Cold-side decimal digit (0–9) |
 | 9 | Signed hot-side temperature integer |
-| 12–13 | Measured fan RPM: byte 12 × 100 + byte 13 |
+| 12–13 | Measured fan RPM: byte 12 × 100 + byte 13; byte 13 must be 0–99 |
 | 14 | Light state: 255 on, 0 off |
 
-Other bytes are retained in the raw frame and are not assigned undocumented meanings by this app.
+Byte 8 is also validated as 0–9, and byte 14 must be either 0 or 255. Other bytes are retained in the raw frame and are not assigned undocumented meanings by this app. Before any non-light control packet is encoded, the app also validates the currently reported mode, fan setting, and cooling setting against the documented normal ranges. This prevents an unexpected reported value from being copied into a new control packet.
 
 ## Control packets currently implemented
 
