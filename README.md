@@ -24,8 +24,8 @@ Implementation is based on the public reference project: https://github.com/shao
 
 The reference project documents these normal control ranges:
 
-- Fan setting: 4000–4500 RPM, step 100.
-- Cooling setting: raw protocol value 92–175. This is not a wattage, temperature, or percentage.
+- Fan setting: 4000–8000 RPM, encoded as base-100 plus remainder; the iOS slider uses 1 RPM steps. The expanded range is a test interface and has not been verified on all B8X firmware revisions.
+- Cooling setting: one-byte raw protocol value 92–255. This is not a wattage, temperature, or percentage. A value of 300 cannot fit the currently decoded one-byte field and is not sent.
 - Modes: automatic and manual.
 
 These are the only control ranges exposed by this build. Measured fan RPM is reported separately from the fan setting.
