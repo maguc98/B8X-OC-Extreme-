@@ -199,7 +199,7 @@ struct LightStudioView: View {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "waveform.path")
                     .foregroundStyle(LightPalette.blueInk)
-                Text("最近控制反馈：\\(bluetooth.lastCommandText)")
+                Text("最近控制反馈：\(bluetooth.lastCommandText)")
                     .foregroundStyle(LightPalette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
