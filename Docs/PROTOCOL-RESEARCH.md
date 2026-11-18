@@ -98,7 +98,7 @@ The iOS diagnostic page now enumerates all GATT services and their characteristi
 
 If these values are absent, the UI reports that the device did not publish them; this does not prove that a firmware version is not stored elsewhere internally. The app does not read arbitrary vendor-specific characteristics.
 
-The app retains up to 64 consecutive 20-byte status notifications, timestamps them, computes changed byte offsets between consecutive frames, and can export the capture. This enables controlled comparison of the B8X status frame before and after using the physical double-press lighting shortcut documented in the B8X user guide. Refresh the status after each physical action if the cooler does not emit an unsolicited notification.
+The app retains up to 64 consecutive 20-byte status notifications, timestamps them to millisecond precision, computes changed byte offsets between consecutive frames, and can export the capture. The physical double-press marker starts a five-second read-only capture window and automatically sends the documented status query (13) six times at 0.0, 0.65, 1.4, 2.3, 3.5, and 5.0 seconds. It does not send any guessed lighting command or write to an unknown characteristic. This enables tighter comparison of frames around the physical action documented in the B8X user guide.
 
 Suggested capture sequence:
 1. Connect to B8X and open Diagnostics.
@@ -176,4 +176,4 @@ A further user screenshot shows eight consecutive 20-byte status frames:
 
 Offset 15 transitions from 0B to 03 between the displayed 21:56:20 and 21:56:21 frames, then remains 03. Offset 14 remains FF throughout. Offsets 7 and 8 also change during the same interval; offset 8 remains the cold-side fractional digit under the existing decoder. The screenshot does not show an action marker or exact physical double-press timestamp, so the 0B→03 transition cannot be attributed to the physical key or interpreted as a lighting effect. Offset 3 remains FF (255), outside the verified 92–175 control range; avoid fan, mode, and cooling writes while this anomalous value is reported.
 
-Next experiment: clear history, wait for a stable baseline, tap the in-app marker once immediately before performing exactly one physical double-press, then wait at least five seconds and export the capture. Repeat three times. Compare frames before and after each marker, especially offset 15, while also checking offsets 7, 8, and 14.
+Next experiment: clear history, wait for a stable baseline, tap “标记并自动抓取” once, immediately perform exactly one physical double-press, allow the five-second automatic capture to finish, then export the capture. Repeat three times. Compare frames before and after each marker, especially offset 15, while also checking offsets 7, 8, and 14. The capture only proves field correlation when the same repeatable transition appears at the same point relative to the marked physical action.

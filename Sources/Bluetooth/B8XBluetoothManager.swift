@@ -10,7 +10,7 @@ struct DiscoveredDevice: Identifiable {
 }
 
 final class B8XBluetoothManager: NSObject, ObservableObject {
-    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback }
+    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback, lightingCaptureReadback }
     private let serviceID = CBUUID(string: "FFE0")
     private let writeID = CBUUID(string: "FFE1")
     private let notifyID = CBUUID(string: "FFE4")
@@ -35,6 +35,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var manufacturerName: String?
     @Published private(set) var statusFrameDeltaSummary = "等待第二条状态帧进行对比"
     @Published private(set) var physicalActionMarkers: [String] = []
+    @Published private(set) var isCapturingLightingAction = false
+    @Published private(set) var lightingCaptureText = "等待实体按键双击抓包"
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -55,6 +57,9 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var lowProtectionLatched = false
     private var highProtectionLatched = false
     private var lastCapturedRawFrame: [UInt8]?
+    private var lightingCaptureID: UUID?
+    private var lightingCaptureWorkItems: [DispatchWorkItem] = []
+    private var lightingCaptureFrameCount = 0
 
     override init() {
         super.init()
@@ -119,21 +124,75 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         detailText = "正在请求设备状态…"
     }
 
+    private func cancelLightingActionCapture(statusText: String) {
+        lightingCaptureWorkItems.forEach { $0.cancel() }
+        lightingCaptureWorkItems.removeAll()
+        lightingCaptureID = nil
+        isCapturingLightingAction = false
+        lightingCaptureText = statusText
+    }
+
     func clearRawFrameHistory() {
+        cancelLightingActionCapture(statusText: "样本已清空，等待新的状态帧")
         rawFrameHistory.removeAll()
         physicalActionMarkers.removeAll()
         lastCapturedRawFrame = nil
         statusFrameDeltaSummary = "样本已清空，等待新的状态帧"
     }
 
+    /// Mark the user's physical double-press and collect read-only status frames
+    /// for five seconds. The only BLE payload sent by this capture is the
+    /// documented status query (0x13); no unknown lighting command is written.
     func markPhysicalDoublePress() {
+        guard notificationReady else {
+            lightingCaptureText = "请先连接 B8X 并完成状态通知订阅"
+            return
+        }
+
+        cancelLightingActionCapture(statusText: "准备新的实体按键抓包")
+        let captureID = UUID()
+        lightingCaptureID = captureID
+        lightingCaptureFrameCount = 0
+        isCapturingLightingAction = true
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let timestamp = formatter.string(from: Date())
         let latestFrame = rawFrameHistory.first ?? "尚无状态帧"
-        let marker = "DOUBLE_PRESS \(timestamp) | frameCount=\(rawFrameHistory.count) | latest=\(latestFrame)"
+        let marker = "DOUBLE_PRESS \(timestamp) | baselineFrames=\(rawFrameHistory.count) | latest=\(latestFrame)"
         physicalActionMarkers.insert(marker, at: 0)
         if physicalActionMarkers.count > 20 { physicalActionMarkers.removeLast() }
+
+        lightingCaptureText = "抓包中：现在请立即双击 B8X 实体按键；5 秒内自动读取 6 次状态。"
+
+        let readbackDelays: [TimeInterval] = [0.0, 0.65, 1.4, 2.3, 3.5, 5.0]
+        for (index, delay) in readbackDelays.enumerated() {
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.lightingCaptureID == captureID else { return }
+                guard self.notificationReady else {
+                    self.cancelLightingActionCapture(statusText: "抓包中断：设备状态通知已断开")
+                    return
+                }
+                guard self.write(Data([0x13]), purpose: .lightingCaptureReadback) else {
+                    self.lightingCaptureText = "第 \(index + 1) 次状态读取未能写入，请检查连接。"
+                    return
+                }
+                self.lightingCaptureText = "抓包中：已发出第 \(index + 1)/6 次状态读取请求…"
+            }
+            lightingCaptureWorkItems.append(work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+
+        let finish = DispatchWorkItem { [weak self] in
+            guard let self, self.lightingCaptureID == captureID else { return }
+            let frames = self.lightingCaptureFrameCount
+            self.lightingCaptureWorkItems.removeAll()
+            self.lightingCaptureID = nil
+            self.isCapturingLightingAction = false
+            self.lightingCaptureText = "抓包完成：收到 \(frames) 条状态帧。请导出抓包并重复 3 次进行对比。"
+        }
+        lightingCaptureWorkItems.append(finish)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.8, execute: finish)
     }
 
     var captureExportText: String {
@@ -274,7 +333,6 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private func handleStatus(_ newStatus: B8XStatus) {
         status = newStatus
         let hex = newStatus.raw.map { String(format: "%02X", $0) }.joined(separator: " ")
-        let stamp = Date().formatted(date: .omitted, time: .standard)
         if let previous = lastCapturedRawFrame, previous.count == newStatus.raw.count {
             let changes = zip(previous, newStatus.raw).enumerated().compactMap { index, pair -> String? in
                 guard pair.0 != pair.1 else { return nil }
@@ -285,7 +343,10 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             statusFrameDeltaSummary = "等待第二条状态帧进行对比"
         }
         lastCapturedRawFrame = newStatus.raw
-        rawFrameHistory.insert("\(stamp)  \(hex)", at: 0)
+        let frameFormatter = ISO8601DateFormatter()
+        frameFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        rawFrameHistory.insert("\(frameFormatter.string(from: Date()))  \(hex)", at: 0)
+        if lightingCaptureID != nil { lightingCaptureFrameCount += 1 }
         if rawFrameHistory.count > 64 {
             rawFrameHistory.removeLast(rawFrameHistory.count - 64)
         }
@@ -338,6 +399,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
             confirmationReadbackWorkItem?.cancel()
             confirmationReadbackWorkItem = nil
             pendingWritePurposes.removeAll()
+            cancelLightingActionCapture(statusText: "抓包已中断：蓝牙不可用")
             isBusy = false
         }
         switch central.state {
@@ -413,6 +475,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
+        cancelLightingActionCapture(statusText: "抓包已中断：连接失败")
         stateText = "连接失败：\(error?.localizedDescription ?? "未知错误")"
         detailText = "连接失败，将自动重新搜索 B8X"
         scheduleAutomaticReconnect()
@@ -433,6 +496,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         confirmationReadbackWorkItem?.cancel()
         confirmationReadbackWorkItem = nil
         pendingWritePurposes.removeAll()
+        cancelLightingActionCapture(statusText: "抓包已中断：设备已断开")
         isBusy = false
         status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
@@ -581,6 +645,8 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
                 if awaitingConfirmation != nil { scheduleConfirmationReadback(after: 0.8) }
             case .statusRequest:
                 detailText = "状态请求写入失败：\(error.localizedDescription)"
+            case .lightingCaptureReadback:
+                lightingCaptureText = "自动状态读取写入失败：\(error.localizedDescription)"
             }
             return
         }
@@ -595,7 +661,7 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             if awaitingConfirmation != nil, confirmationReadbackAttempt < 3 {
                 scheduleConfirmationReadback(after: 0.9)
             }
-        case .statusRequest:
+        case .statusRequest, .lightingCaptureReadback:
             break
         }
     }

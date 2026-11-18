@@ -461,11 +461,15 @@ struct ContentView: View {
                                 .foregroundStyle(Studio.muted)
                         }
                         .disabled(bluetooth.rawFrameHistory.isEmpty)
-                        Button { bluetooth.markPhysicalDoublePress() } label: { actionPill("标记刚刚双击", icon: "hand.tap") }
-                            .disabled(bluetooth.connectedName == nil)
+                        Button { bluetooth.markPhysicalDoublePress() } label: { actionPill("标记并自动抓取", icon: "hand.tap") }
+                            .disabled(bluetooth.connectedName == nil || bluetooth.isCapturingLightingAction)
                         Button { bluetooth.refreshStatus() } label: { actionPill("读取最新状态", icon: "arrow.clockwise") }
                             .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
                     }
+                    Text(bluetooth.lightingCaptureText)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(bluetooth.isCapturingLightingAction ? Studio.coral : Studio.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                     if !bluetooth.physicalActionMarkers.isEmpty {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("实体按键动作标记（点击标记按钮后立即双击）")
