@@ -92,7 +92,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 81))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidFan))
 
-        let invalidCooling = try B8XStatus.decode(sampleFrame(coldLevel: 255))
+        let invalidCooling = try B8XStatus.decode(sampleFrame(coldLevel: 0))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidCooling))
     }
 
