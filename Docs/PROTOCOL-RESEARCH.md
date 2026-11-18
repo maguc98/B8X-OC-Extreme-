@@ -192,3 +192,36 @@ A further user screenshot shows eight consecutive 20-byte status frames:
 Offset 15 transitions from 0B to 03 between the displayed 21:56:20 and 21:56:21 frames, then remains 03. Offset 14 remains FF throughout. Offsets 7 and 8 also change during the same interval; offset 8 remains the cold-side fractional digit under the existing decoder. The screenshot does not show an action marker or exact physical double-press timestamp, so the 0B→03 transition cannot be attributed to the physical key or interpreted as a lighting effect. Offset 3 remains FF (255), outside the verified 92–175 control range; avoid fan, mode, and cooling writes while this anomalous value is reported.
 
 Next experiment: clear history, wait for a stable baseline, tap “标记并自动抓取” once, immediately perform exactly one physical double-press, allow the five-second automatic capture to finish, then export the capture. Repeat three times. Compare frames before and after each marker, especially offset 15, while also checking offsets 7, 8, and 14. The capture only proves field correlation when the same repeatable transition appears at the same point relative to the marked physical action.
+
+
+## Cross-family LED protocol lead (2026-11-18; candidate only, not B8X-verified)
+
+A second independent research project, [pgs666/B6-Studio](https://github.com/pgs666/B6-Studio), publishes a source-level reconstruction of the Flydigi B6/B6X LED API. Its tested model scope is B6/B6X, not B8X. The implementation is useful as a concrete lead, but must not be treated as a confirmed B8X packet specification.
+
+### What the B6/B6X source establishes
+
+- LED configuration write command: `50 type period count index RGB×4 brightness reserved checksum`, fixed 20-byte packet.
+- At most four RGB triplets are carried per packet; an 8-colour configuration is split into two packets.
+- Byte 17 is the brightness field; byte 19 is the low 8 bits of the sum of bytes 0–18.
+- LED readback command: `51 type`; the response begins with `51`. The source assembles multi-packet colour responses and only publishes complete, matching configurations.
+- The B6/B6X source lists types 3 (flow), 4 (switch), 5 (breathing), 6 (gradient), 11 (steady), and 12 (smart frequency rotation), with model/mode-specific availability.
+- Its research note says a newer Game Center package exposed type 16 (multicolour rotation) and type 17 (jumping) as B8/B8X functions. The note does not publish B8X-specific command captures for those types.
+- The B6X firmware 3.3.3 tests did not confirm working brightness control: the device readback kept reporting brightness 0. The UI in that implementation hides brightness when the device does not report a supported value.
+
+### Why this is not yet safe to send to B8X
+
+The B6/B6X project identifies its source APK as `com.fdg.flashplay.farsee` 7.2.7.3 and explicitly scopes its hardware verification to B6X. Separately, a public B8X-specific reverse-engineering note identifies the B8X overclock tool package as `com.fdg.flashplay.farb8x` V2-7.2.2.9; its manifest shows a WaspWing `LedActivity`, but the APK's business DEX is protected by an encrypted loader, so the published analysis contains no LED packet builder or payload values. It also lists a Cyberfox/Gaia BLE service layer, but the manifest alone does not prove which service that page uses to communicate with the cooler.
+
+The B6X and B8X projects do share the common FFE0 / FFE1 / FFE4 BLE UUID family and the `10 FF` / `10 00` light power commands. However, their 20-byte `13` status frame layouts differ materially: the B6X source places the light flag at offset 8, while the B8X implementation verified here reads the light flag at offset 14 and decodes its mode and telemetry at different offsets. A shared transport and shared power-switch command do not prove that the effect payload or readback response is identical.
+
+References:
+- [B6-Studio protocol analysis](https://github.com/pgs666/B6-Studio/blob/d613a3a7d769453d064b908c65e8616d1db726f8/protocol-analysis.md)
+- [B6-Studio LED packet builder](https://github.com/pgs666/B6-Studio/blob/d613a3a7d769453d064b908c65e8616d1db726f8/app/src/main/java/dev/b6/studio/Protocol.java)
+- [B8X dedicated app static analysis](https://github.com/mengdao10086/b6x-Enhancement-Plan-ai/blob/7555abff132496fb357bcdb4c38018104b60c815/%E5%8F%82%E8%80%83%E8%B5%84/decompile/b8x/%E5%8F%8D%E7%BC%96%E8%AF%91%E5%88%86%E6%9E%90.md)
+
+### Implementation decision
+
+- Do not enable `0x50` writes, `0x51` reads, type 16/17, or any B6/B6X LED packet builder in the B8X app yet.
+- Do not assign B8X mode/type mappings by copying B6X labels. The user's B8X UI effect labels need a B8X-specific mapping.
+- Preserve the existing confirmed B8X on/off path (`10 FF` / `10 00`).
+- The next useful proof is a B8X-specific official-client call path or a controlled B8X GATT capture showing a `50` command followed by matching `51` readback. Until then, treat the B6/B6X API as a research lead, not an executable B8X protocol.
