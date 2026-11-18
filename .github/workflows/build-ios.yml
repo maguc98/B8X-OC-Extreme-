@@ -17,7 +17,8 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: macos-15
+    # Xcode 27+ is required for the iOS 27 Duo layout/scene adaptation.
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +28,15 @@ jobs:
           xcode-select -p
           xcodebuild -version
           xcodebuild -showsdks
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "Selected iOS SDK: $IOS_SDK_VERSION"
+          IOS_SDK_MAJOR="${IOS_SDK_VERSION%%.*}"
+          IOS_SDK_MINOR="${IOS_SDK_VERSION#*.}"
+          IOS_SDK_MINOR="${IOS_SDK_MINOR%%.*}"
+          if [ "$IOS_SDK_MAJOR" -lt 27 ] || { [ "$IOS_SDK_MAJOR" -eq 27 ] && [ "$IOS_SDK_MINOR" -lt 1 ]; }; then
+            echo "Error: iOS 27.1 SDK or newer is required for the full-screen Duo layout."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         run: brew install xcodegen
