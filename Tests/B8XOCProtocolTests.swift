@@ -66,7 +66,7 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertEqual(try B8XControl.wind(6000).packet(using: status),
                        Data([0x20, 1, 110, 60, 0, 0, 92, 40, 0]))
         XCTAssertEqual(try B8XControl.cold(255).packet(using: status),
-                       Data([0x20, 1, 175, 42, 0, 0, 92, 40, 0]))
+                       Data([0x20, 1, 255, 42, 0, 0, 92, 40, 0]))
         XCTAssertEqual(try B8XControl.light(false).packet(using: status),
                        Data([0x10, 0x00]))
     }
