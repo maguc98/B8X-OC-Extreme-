@@ -447,6 +447,15 @@ struct ContentView: View {
                         diagnosticRow("风扇设定", "\(s.windLevel) RPM")
                         diagnosticRow("实际转速", "\(s.fanRPM) RPM")
                         diagnosticRow("制冷原始值", "\(s.coldLevel)")
+                        diagnosticRow(
+                            "灯效编号（候选）",
+                            String(format: "0x%02X · %@", s.raw[15],
+                                   s.candidateLightingEffectName ?? "未匹配")
+                        )
+                        Text("byte[15] 与已公开的飞智灯效编号相符，目前仅作只读观察，尚未验证按键对应关系。")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text("连接设备后，这里会显示原始数据帧。").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)
                     }
