@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "Sources/**"
+      - "Tests/**"
       - "project.yml"
       - ".github/workflows/build-ios.yml"
 
@@ -13,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  test-and-build:
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -27,6 +28,15 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
+
+      - name: Run protocol unit tests
+        run: |
+          xcodebuild test \
+            -project B8XOC.xcodeproj \
+            -scheme B8XOC \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -derivedDataPath build/TestDerivedData \
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Build unsigned app
         run: |
