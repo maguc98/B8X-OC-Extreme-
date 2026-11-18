@@ -22,7 +22,7 @@ struct ContentView: View {
                         case .controls: controls
                         case .devices: devices
                         case .diagnostics: diagnostics
-                        case .gameCenter: FlydigiCenterView(bluetooth: bluetooth)
+                        case .lighting: LightStudioView(bluetooth: bluetooth)
                         }
                     }
                     .id(tab)
@@ -463,14 +463,14 @@ struct ContentView: View {
 }
 
 private enum AppTab: CaseIterable {
-    case overview, controls, devices, diagnostics, gameCenter
+    case overview, controls, devices, diagnostics, lighting
     var title: String {
         switch self {
         case .overview: return "总览"
         case .controls: return "控制"
         case .devices: return "设备"
         case .diagnostics: return "诊断"
-        case .gameCenter: return "游戏厅"
+        case .lighting: return "灯光"
         }
     }
     var icon: String {
@@ -479,7 +479,7 @@ private enum AppTab: CaseIterable {
         case .controls: return "slider.horizontal.3"
         case .devices: return "dot.radiowaves.left.and.right"
         case .diagnostics: return "waveform.path.ecg"
-        case .gameCenter: return "gamecontroller"
+        case .lighting: return "lightbulb"
         }
     }
     var selectedIcon: String {
@@ -488,7 +488,7 @@ private enum AppTab: CaseIterable {
         case .controls: return "slider.horizontal.3"
         case .devices: return "dot.radiowaves.left.and.right"
         case .diagnostics: return "waveform.path.ecg"
-        case .gameCenter: return "gamecontroller.fill"
+        case .lighting: return "lightbulb.fill"
         }
     }
     var tint: Color {
@@ -497,7 +497,7 @@ private enum AppTab: CaseIterable {
         case .controls: return Studio.lilac
         case .devices: return Studio.mint
         case .diagnostics: return Studio.peach
-        case .gameCenter: return Studio.lilac
+        case .lighting: return Studio.butter
         }
     }
 }
