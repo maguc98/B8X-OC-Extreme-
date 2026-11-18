@@ -99,6 +99,18 @@ struct ContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("原始状态帧 · 20 bytes")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(status.raw.map { String(format: "%02X", $0) }.joined(separator: " "))
+                    .font(.system(size: 10, design: .monospaced))
+                    .textSelection(.enabled)
+                    .foregroundStyle(.cyan)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.top, 4)
         }
         .padding()
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
