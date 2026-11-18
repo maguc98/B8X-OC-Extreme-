@@ -156,9 +156,11 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         guard let current, notificationReady, !isBusy, requestedControl == nil, awaitingConfirmation == nil else { return }
         if lowTemperatureProtectionEnabled {
             if current.coldTemperature > 7 { lowProtectionLatched = false }
-            if current.coldTemperature <= 5, !lowProtectionLatched {
+            // Never overwrite a user's manually selected cooling level.
+            // Low-temperature cooling reduction is automatic-mode behavior only.
+            if current.isAutomaticMode, current.coldTemperature <= 5, !lowProtectionLatched {
                 lowProtectionLatched = true
-                thermalProtectionText = "低温保护触发：制冷已请求降至最低档 1"
+                thermalProtectionText = "低温保护触发（自动模式）：制冷已请求降至最低档 1"
                 send(.cold(1))
                 return
             }
