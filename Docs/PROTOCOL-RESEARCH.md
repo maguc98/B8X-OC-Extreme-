@@ -144,3 +144,12 @@ A second user-provided capture contains 31 consecutive 20-byte status frames. Ke
 - Fan target remains 6000 RPM and measured RPM 5700 RPM in the final frame.
 
 This capture is not sufficient to prove that the physical button changed lighting mode or to identify a lighting write packet. For a valid correlation test, note the exact time of one physical double-press, capture at least 3 seconds before and after, and repeat the same single action. Avoid all fan/cooling/mode controls while `byte[3]` reports 255; do not attempt to normalize or rewrite this raw value without a verified device procedure.
+
+
+### Follow-up confirmation: physical key action during 21:37–21:38 capture
+
+The user confirmed that the physical B8X button was indeed double-pressed during the 2026-11-18 21:37:32–21:38:02 capture. This confirms that the capture window includes a real physical-button action, correcting the earlier uncertainty about whether any action occurred.
+
+However, the capture does not contain an event timestamp identifying the exact frame at which the double-press occurred, nor does it isolate a before/after transition. Offset 15 remains a candidate for further investigation because it changes during the capture, but its cycling values cannot yet be attributed to the double-press or interpreted as lighting modes. Offset 14 remains FF, so the light-enabled flag did not change. Do not infer a lighting command or send writes based on this correlation alone.
+
+Next experiment: clear the sample buffer, record a baseline, perform exactly one double-press while noting its wall-clock time, then immediately request a status frame; repeat at least three times with separate captures. Compare the frame immediately before and after each action. Continue to avoid cooling/mode controls while byte[3] is 255.
