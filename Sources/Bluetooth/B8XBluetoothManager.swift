@@ -334,6 +334,10 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
 
     private func send(_ control: B8XControl) {
         guard notificationReady, !isBusy else { return }
+        guard !awaitingLightingProtocolProbeResponse else {
+            lastCommandText = "正在读取灯效配置，请稍后再调整设备参数。"
+            return
+        }
         guard let current = status else {
             lastCommandText = "请先读取设备状态"
             refreshStatus()
@@ -770,7 +774,9 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
         case .statusRequest, .lightingCaptureReadback:
             break
         case .lightingProtocolProbe:
-            lightingProtocolProbeText = "候选只读查询已写入，等待设备回包…"
+            if lightingProtocolProbeResponseCount == 0 {
+                lightingProtocolProbeText = "候选只读查询已写入，等待设备回包…"
+            }
         }
     }
 }
