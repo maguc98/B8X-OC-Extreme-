@@ -67,3 +67,19 @@ Please redact Bluetooth identifiers or other personal identifiers before sharing
 - Do not bypass the cooler's firmware thermal limits.
 - Stop testing if temperatures behave unexpectedly, the fan stalls, or the cooler becomes unstable.
 - Cooling below the ambient dew point can cause condensation and damage the phone.
+
+
+## B8X lighting and firmware research
+
+The official Game Center App Store version history records B8X always-on lighting in version 5.1.39 (2025-06-10) and B8X co-branded skins in versions 5.1.39 / 5.2.0. The official B8X help page also documents double-pressing the physical button to switch lighting effects. The accompanying user-provided screenshot shows the Game Center lighting page exposing these effect labels: variable-speed rotation, flowing light, breathing, gradient, switching, multicolor rotation, jumping, and steady; it also shows color selection/favorites, speed and brightness controls.
+
+The currently verified B8X BLE implementation in this repository still knows only:
+- Light on: `10 FF`
+- Light off: `10 00`
+- Status byte 14: `FF` on / `00` off
+
+The 20-byte B8X status decoder does not currently assign mode, RGB, speed, or brightness fields. No B8X-specific write packet for those settings has been established. Do not infer their packet structure from the UI alone.
+
+A separate community protocol reference for Flydigi BS1 / BS2 / BS2 Pro describes a different BLE transport (service FFF0, write FFF2, notify FFF1, frame header 5A A5). B8X in this project uses service FFE0, write FFE1, notify FFE4 and a different 20-byte status frame. The BS1/BS2 protocol is therefore not interchangeable and must not be sent to a B8X.
+
+No reliable B8X-specific firmware metadata read, DFU service, signed firmware resource, checksum/signature validation flow, or recovery mode has been identified yet. Firmware update must remain disabled until these are evidenced for B8X hardware specifically.
