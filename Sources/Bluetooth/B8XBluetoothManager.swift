@@ -10,7 +10,7 @@ struct DiscoveredDevice: Identifiable {
 }
 
 final class B8XBluetoothManager: NSObject, ObservableObject {
-    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback, lightingCaptureReadback }
+    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback, lightingCaptureReadback, lightingProtocolProbe }
     private let serviceID = CBUUID(string: "FFE0")
     private let writeID = CBUUID(string: "FFE1")
     private let notifyID = CBUUID(string: "FFE4")
@@ -37,6 +37,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var physicalActionMarkers: [String] = []
     @Published private(set) var isCapturingLightingAction = false
     @Published private(set) var lightingCaptureText = "等待实体按键双击抓包"
+    @Published private(set) var lightingProtocolProbeText = "尚未执行灯效协议只读探测"
+    @Published private(set) var lightingProtocolProbeRawFrame: String?
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -60,6 +62,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var lightingCaptureID: UUID?
     private var lightingCaptureWorkItems: [DispatchWorkItem] = []
     private var lightingCaptureFrameCount = 0
+    private var awaitingLightingProtocolProbeResponse = false
+    private var lightingProtocolProbeTimeout: DispatchWorkItem?
 
     override init() {
         super.init()
@@ -198,7 +202,58 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     var captureExportText: String {
         let markers = physicalActionMarkers.isEmpty ? "无动作标记" : physicalActionMarkers.reversed().joined(separator: "\n")
         let frames = rawFrameHistory.reversed().joined(separator: "\n")
-        return "【实体按键动作标记】\n\(markers)\n\n【状态帧（新→旧）】\n\(frames)"
+        let probeFrame = lightingProtocolProbeRawFrame ?? "尚未收到 0x51 回包"
+        return "【灯效协议只读探测】\n\(lightingProtocolProbeText)\n\(probeFrame)\n\n【实体按键动作标记】\n\(markers)\n\n【状态帧（新→旧）】\n\(frames)"
+    }
+
+    /// Sends only the candidate read-only 0x51 0x00 configuration query.
+    /// This is manual (never automatic) because its B8X support is unverified.
+    /// No 0x50 LED write is sent by this diagnostic.
+    func probeLightingProtocol() {
+        guard notificationReady else {
+            lightingProtocolProbeText = "请先连接 B8X 并完成通知订阅"
+            return
+        }
+        guard !isBusy, !awaitingLightingProtocolProbeResponse else {
+            lightingProtocolProbeText = "当前有其他蓝牙操作，请稍后再试"
+            return
+        }
+
+        lightingProtocolProbeTimeout?.cancel()
+        lightingProtocolProbeTimeout = nil
+        awaitingLightingProtocolProbeResponse = true
+        lightingProtocolProbeRawFrame = nil
+        lightingProtocolProbeText = "正在发送候选只读查询 51 00，等待回包…"
+        guard write(B8XLightingProtocolProbe.readCurrentConfiguration,
+                    purpose: .lightingProtocolProbe) else {
+            awaitingLightingProtocolProbeResponse = false
+            lightingProtocolProbeText = "查询未能写入，请检查连接"
+            return
+        }
+
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.awaitingLightingProtocolProbeResponse else { return }
+            self.awaitingLightingProtocolProbeResponse = false
+            self.lightingProtocolProbeTimeout = nil
+            self.lightingProtocolProbeText = "3 秒内未收到 0x51 回包；可能不支持该查询，也可能采用不同回包格式。未发送任何灯效写入。"
+        }
+        lightingProtocolProbeTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timeout)
+    }
+
+    private func receiveLightingProtocolProbeResponse(_ data: Data) {
+        guard awaitingLightingProtocolProbeResponse,
+              data.first == B8XLightingProtocolProbe.responseCommand else { return }
+        awaitingLightingProtocolProbeResponse = false
+        lightingProtocolProbeTimeout?.cancel()
+        lightingProtocolProbeTimeout = nil
+        let hex = data.map { String(format: "%02X", $0) }.joined(separator: " ")
+        lightingProtocolProbeRawFrame = hex
+        if data.count == 20 {
+            lightingProtocolProbeText = "收到 20-byte 0x51 候选回包。只说明查询路径有响应；尚未证明 B8X 的 0x50 灯效写入格式。"
+        } else {
+            lightingProtocolProbeText = "收到 0x51 候选回包（\\(data.count) bytes）；长度与已知 B6/B6X 样本不同，暂不启用写入。"
+        }
     }
 
     func setLight(_ enabled: Bool) { send(.light(enabled)) }
@@ -616,6 +671,10 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
         } else if characteristic.uuid == manufacturerNameID {
             manufacturerName = String(data: value, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         } else if characteristic.uuid == notifyID {
+            if value.first == B8XLightingProtocolProbe.responseCommand {
+                receiveLightingProtocolProbeResponse(value)
+                return
+            }
             do {
                 handleStatus(try B8XStatus.decode(value))
             } catch {
@@ -647,6 +706,11 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
                 detailText = "状态请求写入失败：\(error.localizedDescription)"
             case .lightingCaptureReadback:
                 lightingCaptureText = "自动状态读取写入失败：\(error.localizedDescription)"
+            case .lightingProtocolProbe:
+                awaitingLightingProtocolProbeResponse = false
+                lightingProtocolProbeTimeout?.cancel()
+                lightingProtocolProbeTimeout = nil
+                lightingProtocolProbeText = "只读探测写入失败：\(error.localizedDescription)"
             }
             return
         }
@@ -663,6 +727,8 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             }
         case .statusRequest, .lightingCaptureReadback:
             break
+        case .lightingProtocolProbe:
+            lightingProtocolProbeText = "候选只读查询已写入，等待设备回包…"
         }
     }
 }
