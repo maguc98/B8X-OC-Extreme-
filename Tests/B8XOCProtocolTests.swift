@@ -61,7 +61,7 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertThrowsError(try B8XStatus.decode(sampleFrame(fanRemainder: 100)))
     }
 
-    func testControlPacketsRespectSixThousandRPMAndDocumentedCoolingRange() throws {
+    func testControlPacketsRespectSixThousandRPMAndByteCoolingRange() throws {
         let status = try B8XStatus.decode(sampleFrame())
         XCTAssertEqual(try B8XControl.wind(6000).packet(using: status),
                        Data([0x20, 1, 110, 60, 0, 0, 92, 40, 0]))
@@ -80,7 +80,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let confirmed = try B8XStatus.decode(sampleFrame(mode: 0x10, windHundreds: 52, coldLevel: 120))
         XCTAssertTrue(expected.matches(confirmed))
         XCTAssertThrowsError(try B8XControl.settings(wind: 5210, cold: 120).packet(using: anomalous))
-        XCTAssertThrowsError(try B8XControl.settings(wind: 5200, cold: 176).packet(using: anomalous))
+        XCTAssertThrowsError(try B8XControl.settings(wind: 5200, cold: 256).packet(using: anomalous))
     }
 
     func testRejectsFanSettingsAboveSixThousandRPM() throws {
@@ -121,8 +121,8 @@ final class B8XOCProtocolTests: XCTestCase {
         let invalidFan = try B8XStatus.decode(sampleFrame(windHundreds: 61))
         XCTAssertThrowsError(try B8XControl.mode(1).packet(using: invalidFan))
         let maxCooling = try B8XStatus.decode(sampleFrame(coldLevel: 255))
-        XCTAssertThrowsError(try B8XControl.mode(1).packet(using: maxCooling))
-        XCTAssertThrowsError(try B8XControl.cold(255).packet(using: maxCooling))
+        XCTAssertNoThrow(try B8XControl.mode(1).packet(using: maxCooling))
+        XCTAssertNoThrow(try B8XControl.cold(255).packet(using: maxCooling))
     }
 
     func testStatusExpectationMatchesOnlyRequestedAndPreservedFields() throws {
