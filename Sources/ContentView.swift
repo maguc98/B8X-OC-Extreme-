@@ -7,6 +7,8 @@ struct ContentView: View {
     @State private var coldTarget = 110.0
     @State private var fanDirty = false
     @State private var coldDirty = false
+    @AppStorage("B8X.lowTemperatureProtectionEnabled") private var lowTemperatureProtectionEnabled = true
+    @AppStorage("B8X.highTemperatureProtectionEnabled") private var highTemperatureProtectionEnabled = true
 
     var body: some View {
         ZStack {
@@ -37,6 +39,9 @@ struct ContentView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
         .preferredColorScheme(.light)
+        .onAppear { bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
+        .onChange(of: lowTemperatureProtectionEnabled) { _ in bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
+        .onChange(of: highTemperatureProtectionEnabled) { _ in bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
             if !fanDirty { fanTarget = min(max(Double(value.windLevel), 4000), 6000) }
@@ -148,6 +153,35 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 15) {
             heading("TUNING", "设备控制", "每项调整都会等待设备回报确认。")
             if let s = bluetooth.status {
+                Card {
+                    VStack(alignment: .leading, spacing: 13) {
+                        section("温度安全保护", note: "THERMAL SAFETY")
+                        HStack(spacing: 10) {
+                            Image(systemName: "snowflake").foregroundStyle(Studio.blueInk)
+                                .frame(width: 36, height: 36).background(Studio.sky, in: RoundedRectangle(cornerRadius: 11))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("低温保护").font(.system(size: 11, weight: .bold)).foregroundStyle(Studio.ink)
+                                Text("冷端 ≤ 5°C：自动将制冷档位降至 92").font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            }
+                            Spacer()
+                            Toggle("低温保护", isOn: $lowTemperatureProtectionEnabled).labelsHidden().tint(Studio.blue)
+                        }
+                        Divider().overlay(Studio.line)
+                        HStack(spacing: 10) {
+                            Image(systemName: "thermometer.high").foregroundStyle(Studio.coral)
+                                .frame(width: 36, height: 36).background(Studio.peach, in: RoundedRectangle(cornerRadius: 11))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("高温保护").font(.system(size: 11, weight: .bold)).foregroundStyle(Studio.ink)
+                                Text("热端 ≥ 45°C：自动将风扇提升至 6000 RPM").font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            }
+                            Spacer()
+                            Toggle("高温保护", isOn: $highTemperatureProtectionEnabled).labelsHidden().tint(Studio.coral)
+                        }
+                        Text(bluetooth.thermalProtectionText + " · 恢复阈值：低温 > 7°C / 高温 < 42°C")
+                            .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 Card {
                     VStack(alignment: .leading, spacing: 11) {
                         section("运行模式", note: "MODE")
