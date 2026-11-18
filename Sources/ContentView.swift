@@ -48,7 +48,7 @@ struct ContentView: View {
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
             if !fanDirty { fanTarget = min(max(Double(value.windLevel), 4000), 6000) }
-            if !coldDirty { coldTarget = (92...175).contains(value.coldLevel) ? Double(value.coldLevel) : 92 }
+            if !coldDirty { coldTarget = (92...255).contains(value.coldLevel) ? Double(value.coldLevel) : 92 }
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
@@ -223,13 +223,28 @@ struct ContentView: View {
                 Card {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .top) {
-                            section("制冷档位", note: "COOLING LEVEL")
+                            VStack(alignment: .leading, spacing: 5) {
+                                section("制冷档位", note: "COOLING LEVEL")
+                                HStack(spacing: 5) {
+                                    Circle().fill(Studio.green).frame(width: 6, height: 6)
+                                    Text("设备实时回报：\(s.coldLevel)")
+                                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                                        .monospacedDigit()
+                                        .foregroundStyle(Studio.greenInk)
+                                    Text("· 随蓝牙状态帧更新")
+                                        .font(.system(size: 8, weight: .medium))
+                                        .foregroundStyle(Studio.muted)
+                                }
+                            }
                             Spacer()
-                            Text("\(Int(coldTarget))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(Int(coldTarget))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
+                                Text("设定目标").font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
+                            }
                         }
-                        Slider(value: $coldTarget, in: 92...175, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
+                        Slider(value: $coldTarget, in: 92...255, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
                         HStack {
-                            Text("92"); Spacer(); Text("175 · 安全控制上限")
+                            Text("92"); Spacer(); Text("255 · 协议单字节上限")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
                         Text("目标制冷档位将在下方统一写入。")
                             .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
@@ -260,7 +275,7 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                         .disabled(bluetooth.isBusy)
                         if s.coldLevel < 92 || s.coldLevel > 175 {
-                            Text("设备当前回报的制冷原始值为 \(s.coldLevel)，超出有效范围。统一写入会用上方选定的安全档位替换该异常值。")
+                            Text("设备当前回报的制冷原始值为 \(s.coldLevel)，超出有效范围。统一写入会用上方选定的档位替换该值。")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(Studio.goldInk)
                                 .fixedSize(horizontal: false, vertical: true)
