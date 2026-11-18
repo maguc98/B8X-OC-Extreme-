@@ -22,6 +22,7 @@ struct ContentView: View {
                         case .controls: controls
                         case .devices: devices
                         case .diagnostics: diagnostics
+                        case .gameCenter: FlydigiCenterView(bluetooth: bluetooth)
                         }
                     }
                     .id(tab)
@@ -462,13 +463,14 @@ struct ContentView: View {
 }
 
 private enum AppTab: CaseIterable {
-    case overview, controls, devices, diagnostics
+    case overview, controls, devices, diagnostics, gameCenter
     var title: String {
         switch self {
         case .overview: return "总览"
         case .controls: return "控制"
         case .devices: return "设备"
         case .diagnostics: return "诊断"
+        case .gameCenter: return "游戏厅"
         }
     }
     var icon: String {
@@ -477,6 +479,7 @@ private enum AppTab: CaseIterable {
         case .controls: return "slider.horizontal.3"
         case .devices: return "dot.radiowaves.left.and.right"
         case .diagnostics: return "waveform.path.ecg"
+        case .gameCenter: return "gamecontroller"
         }
     }
     var selectedIcon: String {
@@ -493,6 +496,7 @@ private enum AppTab: CaseIterable {
         case .controls: return Studio.lilac
         case .devices: return Studio.mint
         case .diagnostics: return Studio.peach
+        case .gameCenter: return Studio.lilac
         }
     }
 }
