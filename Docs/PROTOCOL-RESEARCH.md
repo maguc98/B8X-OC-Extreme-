@@ -153,3 +153,23 @@ The user confirmed that the physical B8X button was indeed double-pressed during
 However, the capture does not contain an event timestamp identifying the exact frame at which the double-press occurred, nor does it isolate a before/after transition. Offset 15 remains a candidate for further investigation because it changes during the capture, but its cycling values cannot yet be attributed to the double-press or interpreted as lighting modes. Offset 14 remains FF, so the light-enabled flag did not change. Do not infer a lighting command or send writes based on this correlation alone.
 
 Next experiment: clear the sample buffer, record a baseline, perform exactly one double-press while noting its wall-clock time, then immediately request a status frame; repeat at least three times with separate captures. Compare the frame immediately before and after each action. Continue to avoid cooling/mode controls while byte[3] is 255.
+
+
+## User capture: 2026-11-18 21:56:18–21:56:25
+
+A further user screenshot shows eight consecutive 20-byte status frames:
+
+| Time | Offset 7 | Offset 8 | Offset 15 |
+|---|---|---|---|
+| 21:56:18 | F1 | 09 | 0B |
+| 21:56:19 | F0 | 02 | 0B |
+| 21:56:20 | F0 | 04 | 0B |
+| 21:56:21 | F0 | 05 | 03 |
+| 21:56:22 | F0 | 07 | 03 |
+| 21:56:23 | F0 | 08 | 03 |
+| 21:56:24 | F0 | 09 | 03 |
+| 21:56:25 | F0 | 09 | 03 |
+
+Offset 15 transitions from 0B to 03 between the displayed 21:56:20 and 21:56:21 frames, then remains 03. Offset 14 remains FF throughout. Offsets 7 and 8 also change during the same interval; offset 8 remains the cold-side fractional digit under the existing decoder. The screenshot does not show an action marker or exact physical double-press timestamp, so the 0B→03 transition cannot be attributed to the physical key or interpreted as a lighting effect. Offset 3 remains FF (255), outside the verified 92–175 control range; avoid fan, mode, and cooling writes while this anomalous value is reported.
+
+Next experiment: clear history, wait for a stable baseline, tap the in-app marker once immediately before performing exactly one physical double-press, then wait at least five seconds and export the capture. Repeat three times. Compare frames before and after each marker, especially offset 15, while also checking offsets 7, 8, and 14.
