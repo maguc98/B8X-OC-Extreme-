@@ -52,7 +52,7 @@ Requires Swift 5.9+, macOS, Xcode, and XcodeGen.
 
 ## Safety and limitations
 
-- No undocumented overclock values are written.
+- The 4600–6000 RPM fan range is experimental and not confirmed by the public reference implementation; the app-side ceiling remains 6000 RPM.
 - No firmware update, factory reset, or thermal-protection bypass is implemented.
 - The reference project has not established that higher fan or cooling values are supported by all B8X firmware revisions.
 - Keep the cooler's original thermal protections enabled.

@@ -63,7 +63,7 @@ Please redact Bluetooth identifiers or other personal identifiers before sharing
 
 ## Safety boundaries
 
-- Do not send guessed values above the app's 6000 RPM fan limit or the currently validated protocol ranges.
+- Keep fan targets at or below the app's 6000 RPM ceiling. The 4600–6000 RPM extension is not validated by the public reference; do not treat it as a confirmed device capability.
 - Do not bypass the cooler's firmware thermal limits.
 - Stop testing if temperatures behave unexpectedly, the fan stalls, or the cooler becomes unstable.
 - Cooling below the ambient dew point can cause condensation and damage the phone.

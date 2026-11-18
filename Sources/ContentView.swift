@@ -35,12 +35,12 @@ struct ContentView: View {
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
             if !fanDirty { fanTarget = min(max(Double(value.windLevel), 4000), 6000) }
-            if !coldDirty { coldTarget = min(max(Double(value.coldLevel), 92), 255) }
+            if !coldDirty { coldTarget = min(max(Double(value.coldLevel), 92), 175) }
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
             fanTarget = min(max(Double(value.windLevel), 4000), 6000)
-            coldTarget = min(max(Double(value.coldLevel), 92), 255)
+            coldTarget = min(max(Double(value.coldLevel), 92), 175)
             fanDirty = false
             coldDirty = false
         }
