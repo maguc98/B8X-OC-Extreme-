@@ -528,6 +528,8 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             operationTimeout?.cancel()
             operationTimeout = nil
             lastCommandText = "写入失败：\(error.localizedDescription)"
+        } else if awaitingConfirmation != nil {
+            lastCommandText = "蓝牙已接受写入，等待设备状态确认…"
         }
     }
 }
