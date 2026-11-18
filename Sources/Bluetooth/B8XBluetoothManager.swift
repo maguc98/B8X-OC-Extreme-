@@ -252,7 +252,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         if data.count == 20 {
             lightingProtocolProbeText = "收到 20-byte 0x51 候选回包。只说明查询路径有响应；尚未证明 B8X 的 0x50 灯效写入格式。"
         } else {
-            lightingProtocolProbeText = "收到 0x51 候选回包（\\(data.count) bytes）；长度与已知 B6/B6X 样本不同，暂不启用写入。"
+            lightingProtocolProbeText = "收到 0x51 候选回包（\(data.count) bytes）；长度与已知 B6/B6X 样本不同，暂不启用写入。"
         }
     }
 
