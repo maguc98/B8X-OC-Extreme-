@@ -256,6 +256,14 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
     }
 
+    private func resetLightingProtocolProbe(_ message: String) {
+        lightingProtocolProbeTimeout?.cancel()
+        lightingProtocolProbeTimeout = nil
+        awaitingLightingProtocolProbeResponse = false
+        lightingProtocolProbeText = message
+        lightingProtocolProbeRawFrame = nil
+    }
+
     func setLight(_ enabled: Bool) { send(.light(enabled)) }
     func setMode(_ mode: Int) { send(.mode(mode)) }
     func setWind(_ value: Int) { send(.wind(value)) }
@@ -455,6 +463,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
             confirmationReadbackWorkItem = nil
             pendingWritePurposes.removeAll()
             cancelLightingActionCapture(statusText: "抓包已中断：蓝牙不可用")
+            resetLightingProtocolProbe("蓝牙不可用，灯效协议探测已重置")
             isBusy = false
         }
         switch central.state {
@@ -507,6 +516,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         manufacturerName = nil
         gattInventory = "正在枚举设备公开的 GATT 服务…"
         clearRawFrameHistory()
+        resetLightingProtocolProbe("设备已连接；可手动执行候选只读查询")
         peripheral.delegate = self
         // Read-only discovery: enumerate services to identify standard
         // Device Information metadata and any advertised update service.
@@ -530,6 +540,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
+        resetLightingProtocolProbe("连接失败，灯效协议探测已重置")
         cancelLightingActionCapture(statusText: "抓包已中断：连接失败")
         stateText = "连接失败：\(error?.localizedDescription ?? "未知错误")"
         detailText = "连接失败，将自动重新搜索 B8X"
@@ -544,6 +555,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
+        resetLightingProtocolProbe("设备已断开，灯效协议探测已重置")
         requestedControl = nil
         awaitingConfirmation = nil
         operationTimeout?.cancel()
