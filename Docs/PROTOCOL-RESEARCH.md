@@ -83,3 +83,34 @@ The 20-byte B8X status decoder does not currently assign mode, RGB, speed, or br
 A separate community protocol reference for Flydigi BS1 / BS2 / BS2 Pro describes a different BLE transport (service FFF0, write FFF2, notify FFF1, frame header 5A A5). B8X in this project uses service FFE0, write FFE1, notify FFE4 and a different 20-byte status frame. The BS1/BS2 protocol is therefore not interchangeable and must not be sent to a B8X.
 
 No reliable B8X-specific firmware metadata read, DFU service, signed firmware resource, checksum/signature validation flow, or recovery mode has been identified yet. Firmware update must remain disabled until these are evidenced for B8X hardware specifically.
+
+
+## Read-only device discovery and evidence capture
+
+The iOS diagnostic page now enumerates all GATT services and their characteristic properties without writing to unknown services. It also attempts reads only for the standard Bluetooth Device Information service `180A`, and only for standard readable characteristics:
+- `2A24`: Model Number String
+- `2A26`: Firmware Revision String
+- `2A29`: Manufacturer Name String
+
+If these values are absent, the UI reports that the device did not publish them; this does not prove that a firmware version is not stored elsewhere internally. The app does not read arbitrary vendor-specific characteristics.
+
+The app retains up to 64 consecutive 20-byte status notifications, timestamps them, computes changed byte offsets between consecutive frames, and can export the capture. This enables controlled comparison of the B8X status frame before and after using the physical double-press lighting shortcut documented in the B8X user guide. Refresh the status after each physical action if the cooler does not emit an unsolicited notification.
+
+Suggested capture sequence:
+1. Connect to B8X and open Diagnostics.
+2. Clear samples, then request status once and export or note the initial frame.
+3. Double-press the cooler's physical key once to change lighting mode.
+4. Request status again; record changed byte offsets and the new raw frame.
+5. Repeat several times, changing only the lighting effect using the physical key.
+6. Export the full capture and share it for analysis.
+
+This test can reveal whether lighting mode is represented in the existing status frame. It cannot, by itself, reveal RGB, speed, or brightness write packets.
+
+## Firmware-update evidence status
+
+The public B8X product help page documents button functions and lighting-effect switching, but the publicly indexed B8X-specific material reviewed so far does not document a firmware-update sequence, firmware image, bootloader/DFU service, or recovery method. The official Flydigi community firmware tutorial found during research is explicitly titled as a controller firmware-upgrade tutorial, not a B8X cooler firmware procedure.
+
+Therefore:
+- A discovered GATT service with an unfamiliar UUID is evidence only that the service is advertised; it is not proof that it is a DFU service.
+- Standard Device Information firmware revision (2A26), if exposed, is safe to display as metadata but does not imply an update method.
+- Do not send guessed DFU commands, switch the cooler into an unknown boot mode, or attempt firmware writes until a B8X-specific firmware package, target compatibility, checksum/signature requirements, packet/acknowledgement sequence, interruption behavior, and recovery path are independently established.
