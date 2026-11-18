@@ -13,6 +13,10 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private let serviceID = CBUUID(string: "FFE0")
     private let writeID = CBUUID(string: "FFE1")
     private let notifyID = CBUUID(string: "FFE4")
+    private let deviceInformationServiceID = CBUUID(string: "180A")
+    private let firmwareRevisionID = CBUUID(string: "2A26")
+    private let modelNumberID = CBUUID(string: "2A24")
+    private let manufacturerNameID = CBUUID(string: "2A29")
 
     @Published private(set) var stateText = "等待蓝牙初始化"
     @Published private(set) var devices: [DiscoveredDevice] = []
@@ -23,6 +27,11 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var lastCommandText = "尚未发送控制指令"
     @Published private(set) var thermalProtectionText = "温度保护待机"
+    @Published private(set) var rawFrameHistory: [String] = []
+    @Published private(set) var gattInventory = "尚未枚举 GATT 服务"
+    @Published private(set) var firmwareRevision: String?
+    @Published private(set) var modelNumber: String?
+    @Published private(set) var manufacturerName: String?
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -206,6 +215,12 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
 
     private func handleStatus(_ newStatus: B8XStatus) {
         status = newStatus
+        let hex = newStatus.raw.map { String(format: "%02X", $0) }.joined(separator: " ")
+        let stamp = Date().formatted(date: .omitted, time: .standard)
+        rawFrameHistory.insert("\(stamp)  \(hex)", at: 0)
+        if rawFrameHistory.count > 64 {
+            rawFrameHistory.removeLast(rawFrameHistory.count - 64)
+        }
         if let control = requestedControl {
             operationTimeout?.cancel()
             operationTimeout = nil
@@ -296,8 +311,16 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
+        firmwareRevision = nil
+        modelNumber = nil
+        manufacturerName = nil
+        gattInventory = "正在枚举设备公开的 GATT 服务…"
+        rawFrameHistory.removeAll()
         peripheral.delegate = self
-        peripheral.discoverServices([serviceID])
+        // Read-only discovery: enumerate services to identify standard
+        // Device Information metadata and any advertised update service.
+        // No unknown characteristic is written or activated.
+        peripheral.discoverServices(nil)
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -350,13 +373,19 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error {
             detailText = "发现服务失败：\(error.localizedDescription)"
+            gattInventory = "服务枚举失败：\(error.localizedDescription)"
             return
         }
-        guard let service = peripheral.services?.first(where: { $0.uuid == serviceID }) else {
-            detailText = "未发现已验证的 B8X 服务 FFE0"
+        let services = peripheral.services ?? []
+        guard !services.isEmpty else {
+            gattInventory = "设备未公开 GATT 服务"
+            detailText = "未发现设备服务"
             return
         }
-        peripheral.discoverCharacteristics([writeID, notifyID], for: service)
+        gattInventory = services.map { "Service \($0.uuid.uuidString)" }.joined(separator: "\n")
+        for service in services {
+            peripheral.discoverCharacteristics(nil, for: service)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral,
@@ -366,18 +395,50 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             detailText = "发现特征值失败：\(error.localizedDescription)"
             return
         }
+
         let characteristics = service.characteristics ?? []
-        guard let write = characteristics.first(where: { $0.uuid == writeID }),
-              write.properties.contains(.write),
-              let notify = characteristics.first(where: { $0.uuid == notifyID }),
-              notify.properties.contains(.notify) || notify.properties.contains(.indicate) else {
-            detailText = "缺少可写的 FFE1 或可通知的 FFE4 特征值"
-            return
+        let rows = characteristics.map { characteristic in
+            let properties = characteristic.properties
+            var flags: [String] = []
+            if properties.contains(.read) { flags.append("R") }
+            if properties.contains(.write) { flags.append("W") }
+            if properties.contains(.writeWithoutResponse) { flags.append("WNR") }
+            if properties.contains(.notify) { flags.append("N") }
+            if properties.contains(.indicate) { flags.append("I") }
+            return "  \(characteristic.uuid.uuidString) [\(flags.joined(separator: ","))]"
         }
-        writeCharacteristic = write
-        notifyCharacteristic = notify
-        peripheral.setNotifyValue(true, for: notify)
-        detailText = "正在订阅设备状态通知…"
+        let section = (["Service \(service.uuid.uuidString)"] + rows).joined(separator: "\n")
+        if gattInventory.isEmpty {
+            gattInventory = section
+        } else {
+            gattInventory += "\n" + rows.joined(separator: "\n")
+        }
+
+        if service.uuid == serviceID {
+            writeCharacteristic = characteristics.first(where: {
+                $0.uuid == writeID && $0.properties.contains(.write)
+            })
+            notifyCharacteristic = characteristics.first(where: {
+                $0.uuid == notifyID &&
+                ($0.properties.contains(.notify) || $0.properties.contains(.indicate))
+            })
+            if let writeCharacteristic, let notifyCharacteristic {
+                peripheral.setNotifyValue(true, for: notifyCharacteristic)
+                detailText = "正在订阅设备状态通知…"
+            } else {
+                detailText = "缺少可写的 FFE1 或可通知的 FFE4 特征值"
+            }
+        }
+
+        // Only read the standard Bluetooth Device Information characteristics.
+        // Never probe undocumented vendor characteristics with arbitrary reads.
+        if service.uuid == deviceInformationServiceID {
+            for characteristic in characteristics where characteristic.properties.contains(.read) {
+                if [firmwareRevisionID, modelNumberID, manufacturerNameID].contains(characteristic.uuid) {
+                    peripheral.readValue(for: characteristic)
+                }
+            }
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral,
@@ -396,16 +457,26 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?) {
-        guard characteristic.uuid == notifyID else { return }
         if let error {
-            detailText = "读取状态失败：\(error.localizedDescription)"
+            if characteristic.uuid == notifyID {
+                detailText = "读取状态失败：\(error.localizedDescription)"
+            }
             return
         }
         guard let value = characteristic.value else { return }
-        do {
-            handleStatus(try B8XStatus.decode(value))
-        } catch {
-            detailText = "收到非状态数据：\(error.localizedDescription)"
+
+        if characteristic.uuid == firmwareRevisionID {
+            firmwareRevision = String(data: value, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if characteristic.uuid == modelNumberID {
+            modelNumber = String(data: value, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if characteristic.uuid == manufacturerNameID {
+            manufacturerName = String(data: value, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if characteristic.uuid == notifyID {
+            do {
+                handleStatus(try B8XStatus.decode(value))
+            } catch {
+                detailText = "收到非状态数据：\(error.localizedDescription)"
+            }
         }
     }
 
