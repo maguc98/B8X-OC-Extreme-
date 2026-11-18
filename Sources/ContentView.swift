@@ -367,8 +367,24 @@ struct ContentView: View {
                             .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(Studio.muted)
                         Spacer()
+                        Button { bluetooth.clearRawFrameHistory() } label: {
+                            Text("清空样本")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Studio.muted)
+                        }
+                        .disabled(bluetooth.rawFrameHistory.isEmpty)
                         Button { bluetooth.refreshStatus() } label: { actionPill("读取最新状态", icon: "arrow.clockwise") }
                             .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("与上一帧的字节差异（索引从 0 开始）")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Studio.muted)
+                        Text(bluetooth.statusFrameDeltaSummary)
+                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Studio.violetInk)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if bluetooth.rawFrameHistory.isEmpty {
                         Text("暂无历史帧。读取状态或切换散热器实体灯效后，可再次读取并导出前后数据。")
