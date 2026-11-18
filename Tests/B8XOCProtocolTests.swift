@@ -42,6 +42,13 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertEqual(status.raw, [UInt8](frame))
     }
 
+    func testAutomaticModeDetectionForThermalProtection() throws {
+        let automatic = try B8XStatus.decode(sampleFrame(mode: 0x00))
+        let manual = try B8XStatus.decode(sampleFrame(mode: 0x10))
+        XCTAssertTrue(automatic.isAutomaticMode)
+        XCTAssertFalse(manual.isAutomaticMode)
+    }
+
     func testDecodesNegativeColdTemperature() throws {
         let status = try B8XStatus.decode(sampleFrame(coldInteger: 0xFF, coldFraction: 3))
         XCTAssertEqual(status.coldTemperature, -0.7, accuracy: 0.001)
