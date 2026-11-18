@@ -35,12 +35,12 @@ struct ContentView: View {
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
             if !fanDirty { fanTarget = min(max(Double(value.windLevel), 4000), 6000) }
-            if !coldDirty { coldTarget = min(max(Double(value.coldLevel), 92), 175) }
+            if !coldDirty { coldTarget = min(max(Double(value.coldLevel), 92), 255) }
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
             fanTarget = min(max(Double(value.windLevel), 4000), 6000)
-            coldTarget = min(max(Double(value.coldLevel), 92), 175)
+            coldTarget = min(max(Double(value.coldLevel), 92), 255)
             fanDirty = false
             coldDirty = false
         }
@@ -189,9 +189,9 @@ struct ContentView: View {
                             Spacer()
                             Text("\(Int(coldTarget))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
                         }
-                        Slider(value: $coldTarget, in: 92...175, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
+                        Slider(value: $coldTarget, in: 92...255, step: 1) { editing in if editing { coldDirty = true } }.tint(Studio.green)
                         HStack {
-                            Text("92"); Spacer(); Text("175 · 参考协议上限")
+                            Text("92"); Spacer(); Text("255 · 原始档位上限")
                         }.font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
                         HStack {
                             Text(coldDirty ? "有未应用的更改" : "设备设定 \(s.coldLevel)").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)
