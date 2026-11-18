@@ -15,8 +15,6 @@ struct B8XStatus: Equatable {
         guard bytes.count == 20, bytes[0] == 0x13 else {
             throw B8XProtocolError.invalidFrame
         }
-        // These fields encode a base-100 value plus a two-digit remainder.
-        // Reject malformed remainders before they can reach command encoding.
         guard bytes[5] <= 99, bytes[8] <= 9, bytes[13] <= 99,
               bytes[14] == 0 || bytes[14] == 255 else {
             throw B8XProtocolError.invalidFields
@@ -49,7 +47,7 @@ enum B8XProtocolError: LocalizedError {
         case .invalidFrame: return "收到的状态帧格式不正确"
         case .invalidFields: return "状态帧包含无效字段"
         case .unsupportedMode: return "设备返回了未验证的运行模式"
-        case .invalidWindLevel: return "风扇设定超出当前开放范围（4000–8000 RPM）"
+        case .invalidWindLevel: return "风扇设定超出当前开放范围（4000–6000 RPM）"
         case .invalidColdLevel: return "制冷设定超出当前协议可表示范围（92–255）；300 档需要确认扩展编码"
         case .missingStatus: return "尚未读取设备状态"
         }
@@ -62,11 +60,12 @@ enum B8XControl {
     case wind(Int)
     case cold(Int)
 
-    private func validateCurrentSettings(_ status: B8XStatus) throws {
+    private func validateCurrentSettings(_ status: B8XStatus, allowFanReductionFromAboveLimit: Bool = false) throws {
         guard status.modeRaw == 0 || status.modeRaw == 1 else {
             throw B8XProtocolError.unsupportedMode
         }
-        guard (4000...8000).contains(status.windLevel) else {
+        let fanRange = allowFanReductionFromAboveLimit ? (4000...8000) : (4000...6000)
+        guard fanRange.contains(status.windLevel) else {
             throw B8XProtocolError.invalidWindLevel
         }
         guard (92...255).contains(status.coldLevel) else {
@@ -78,26 +77,27 @@ enum B8XControl {
         if case .light(let enabled) = self {
             return .light(enabled)
         }
-        try validateCurrentSettings(status)
         switch self {
         case .light(let enabled):
             return .light(enabled)
         case .mode(let mode):
+            try validateCurrentSettings(status)
             guard mode == 0 || mode == 1 else { throw B8XProtocolError.unsupportedMode }
             return .mode(mode, wind: status.windLevel, cold: status.coldLevel)
         case .wind(let value):
-            guard (4000...8000).contains(value) else {
+            try validateCurrentSettings(status, allowFanReductionFromAboveLimit: true)
+            guard (4000...6000).contains(value) else {
                 throw B8XProtocolError.invalidWindLevel
             }
             return .wind(value, mode: status.modeRaw, cold: status.coldLevel)
         case .cold(let value):
+            try validateCurrentSettings(status)
             guard (92...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return .cold(value, mode: status.modeRaw, wind: status.windLevel)
         }
     }
 
     func packet(using status: B8XStatus) throws -> Data {
-        // Apply the same validation even when packet() is called directly.
         _ = try expectedStatus(from: status)
         switch self {
         case .light(let enabled):
