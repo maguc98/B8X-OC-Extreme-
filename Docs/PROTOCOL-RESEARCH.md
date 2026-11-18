@@ -37,6 +37,8 @@ Byte 8 is validated as 0–9, and byte 14 must be either 0 or 255. Other bytes a
 
 The final three fixed bytes and preserved byte are reproduced from the public reference implementation. Their hardware meaning has not been independently established here.
 
+The iOS controller sends the on/off packet using a response-required write. After the write callback succeeds, it actively sends the documented one-byte status query (13) up to three times, waiting for the returned 20-byte notification to confirm byte 14. This avoids relying solely on unsolicited device notifications. The UI reports write errors separately from a missing or mismatched device-state confirmation. A successful BLE write is not treated as proof that the LEDs changed.
+
 The current app control limits (updated after the 2026-11-18 one-unit control change) are:
 
 - Fan setting: 1–6000 RPM, encoded as byte 4 × 100 + byte 5. The app no longer imposes 100 RPM steps; the slider has no fixed step and command values are rounded to the nearest whole RPM. This encoding can represent 1 RPM increments, but that does not prove the hardware will physically run at every value. The public B8X reference validates ordinary settings only through 4500 RPM; values below 4000 and above 4500 RPM are experimental and require real-device verification. Applying a fixed fan target sets mode 1 (manual) in the same command packet.
