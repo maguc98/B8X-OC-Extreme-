@@ -10,6 +10,9 @@ struct B8XStatus: Equatable {
     let modeRaw: Int
     let raw: [UInt8]
 
+    /// The B8X reports mode 0 as automatic and mode 1 as manual.
+    var isAutomaticMode: Bool { modeRaw == 0 }
+
     static func decode(_ data: Data) throws -> B8XStatus {
         let bytes = [UInt8](data)
         guard bytes.count == 20, bytes[0] == 0x13 else {
