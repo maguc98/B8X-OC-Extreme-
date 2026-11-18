@@ -169,7 +169,7 @@ struct ContentView: View {
                                 .frame(width: 36, height: 36).background(Studio.sky, in: RoundedRectangle(cornerRadius: 11))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("低温保护").font(.system(size: 11, weight: .bold)).foregroundStyle(Studio.ink)
-                                Text("冷端 ≤ 5°C：自动将制冷档位降至 92").font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                                Text("冷端 ≤ 5°C：自动将制冷档位降至 1").font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                             }
                             Spacer()
                             Toggle("低温保护", isOn: $lowTemperatureProtectionEnabled).labelsHidden().tint(Studio.blue)
@@ -526,10 +526,10 @@ struct ContentView: View {
             }
             Card {
                 VStack(alignment: .leading, spacing: 10) {
-                    section("控制范围", note: "SAFE LIMITS")
-                    diagnosticRow("风扇设定", "4,000–6,000 RPM")
-                    diagnosticRow("制冷原始档位", "92–175")
-                    Text("风扇控制上限固定为 6,000 RPM。制冷值是当前单字节协议原始值，不代表瓦数或温度；未经验证的扩展档位不会发送。")
+                    section("控制范围", note: "APP CONTROL RANGE")
+                    diagnosticRow("风扇设定", "1–6,000 RPM · 1 RPM 精度")
+                    diagnosticRow("制冷原始档位", "1–255 · 1 档精度")
+                    Text("滑块连续调节并提供触觉反馈。范围描述的是应用可编码的目标值，并不代表设备已验证支持所有档位；制冷原始值不代表瓦数或温度。")
                         .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
                 }
             }
