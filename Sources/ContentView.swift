@@ -49,11 +49,11 @@ struct ContentView: View {
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功",
                   let status = bluetooth.status else { return }
-            if hasWindDraft {
+            if hasWindDraft && status.windLevel == Int(windSelection) {
                 windSelection = Double(status.windLevel)
                 hasWindDraft = false
             }
-            if hasColdDraft {
+            if hasColdDraft && status.coldLevel == Int(coldSelection) {
                 coldSelection = Double(status.coldLevel)
                 hasColdDraft = false
             }
@@ -434,7 +434,7 @@ struct ContentView: View {
             .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(selected ? B8XPalette.cyan.opacity(0.35) : B8XPalette.stroke, lineWidth: 0.7))
         }
         .buttonStyle(.plain)
-        .disabled(bluetooth.isBusy || (selected && (statusModeIsKnown)))
+        .disabled(bluetooth.isBusy || selected)
     }
 
     // MARK: - Empty state / devices / diagnostics
@@ -572,11 +572,6 @@ struct ContentView: View {
         }
         .padding(.horizontal, 2)
     }
-
-    private var statusModeIsKnown: Bool {
-        guard let status = bluetooth.status else { return false }
-        return status.modeRaw == 0 || status.modeRaw == 1
-    }
 }
 
 // MARK: - Instrument components
@@ -671,7 +666,6 @@ private struct FanGauge: View {
                         .font(.system(size: 42, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(B8XPalette.primaryText)
-                        .contentTransition(.numericText())
                     Text("RPM")
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundStyle(B8XPalette.cyan)
