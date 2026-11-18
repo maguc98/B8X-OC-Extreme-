@@ -53,6 +53,15 @@ struct B8XStatus: Equatable {
     }
 }
 
+/// Candidate read-only LED configuration query documented by the B6/B6X
+/// protocol research. B8X support is NOT assumed; this is sent only when the
+/// user explicitly starts the diagnostic probe. No LED write command is
+/// exposed until a B8X response has been independently validated.
+enum B8XLightingProtocolProbe {
+    static let readCurrentConfiguration = Data([0x51, 0x00])
+    static let responseCommand: UInt8 = 0x51
+}
+
 enum B8XProtocolError: LocalizedError {
     case invalidFrame
     case invalidFields
