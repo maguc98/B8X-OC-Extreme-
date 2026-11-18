@@ -265,7 +265,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
                 self.lastCommandText = "指令已发送，但主动读取设备状态失败。请检查连接。"
                 return
             }
-            self.lastCommandText = "指令已发送，正在读取设备状态（\\(attempt)/3）…"
+            self.lastCommandText = "指令已发送，正在读取设备状态（\(attempt)/3）…"
         }
         confirmationReadbackWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
