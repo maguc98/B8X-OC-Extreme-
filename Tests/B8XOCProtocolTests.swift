@@ -65,6 +65,10 @@ final class B8XOCProtocolTests: XCTestCase {
         let status = try B8XStatus.decode(sampleFrame())
         XCTAssertEqual(try B8XControl.wind(6000).packet(using: status),
                        Data([0x20, 1, 110, 60, 0, 0, 92, 40, 0]))
+        XCTAssertEqual(try B8XControl.wind(1).packet(using: status),
+                       Data([0x20, 1, 110, 0, 1, 0, 92, 40, 0]))
+        XCTAssertEqual(try B8XControl.cold(1).packet(using: status),
+                       Data([0x20, 1, 1, 42, 0, 0, 92, 40, 0]))
         XCTAssertEqual(try B8XControl.cold(255).packet(using: status),
                        Data([0x20, 1, 255, 42, 0, 0, 92, 40, 0]))
         XCTAssertEqual(try B8XControl.light(false).packet(using: status),
@@ -79,28 +83,32 @@ final class B8XOCProtocolTests: XCTestCase {
         let expected = try control.expectedStatus(from: anomalous)
         let confirmed = try B8XStatus.decode(sampleFrame(mode: 0x10, windHundreds: 52, coldLevel: 120))
         XCTAssertTrue(expected.matches(confirmed))
-        XCTAssertThrowsError(try B8XControl.settings(wind: 5210, cold: 120).packet(using: anomalous))
+        XCTAssertEqual(try B8XControl.settings(wind: 5210, cold: 120).packet(using: anomalous),
+                       Data([0x20, 1, 120, 52, 10, 0, 92, 40, 0]))
+        XCTAssertThrowsError(try B8XControl.settings(wind: 6001, cold: 120).packet(using: anomalous))
         XCTAssertThrowsError(try B8XControl.settings(wind: 5200, cold: 256).packet(using: anomalous))
     }
 
     func testRejectsFanSettingsAboveSixThousandRPM() throws {
         let status = try B8XStatus.decode(sampleFrame())
+        XCTAssertNoThrow(try B8XControl.wind(1).packet(using: status))
         XCTAssertNoThrow(try B8XControl.wind(4100).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.wind(4150).packet(using: status))
         XCTAssertNoThrow(try B8XControl.wind(6000).packet(using: status))
-        XCTAssertThrowsError(try B8XControl.wind(4150).packet(using: status))
         XCTAssertThrowsError(try B8XControl.wind(6001).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.cold(1).packet(using: status))
         XCTAssertNoThrow(try B8XControl.cold(255).packet(using: status))
         XCTAssertThrowsError(try B8XControl.cold(256).packet(using: status))
     }
 
-    func testWindControlSwitchesAutomaticModeToManualAndUses100RPMSteps() throws {
+    func testWindControlSwitchesToManualAndAllowsSingleRPMResolution() throws {
         let automatic = try B8XStatus.decode(sampleFrame(mode: 0x00))
         let control = B8XControl.wind(4300)
         XCTAssertEqual(try control.packet(using: automatic),
                        Data([0x20, 1, 110, 43, 0, 0, 92, 40, 0]))
         let manualAfter = try B8XStatus.decode(sampleFrame(mode: 0x10, windHundreds: 43))
         XCTAssertTrue(try control.expectedStatus(from: automatic).matches(manualAfter))
-        XCTAssertThrowsError(try B8XControl.wind(4310).packet(using: automatic))
+        XCTAssertNoThrow(try B8XControl.wind(4310).packet(using: automatic))
     }
 
     func testFanCanBeReducedWhenDeviceCurrentlyReportsAboveNewCeiling() throws {
