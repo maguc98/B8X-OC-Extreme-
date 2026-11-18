@@ -30,7 +30,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var requestedControl: B8XControl?
     private var awaitingConfirmation: B8XStatusExpectation?
     private var notificationReady = false
-    private var confirmationTimeout: DispatchWorkItem?
+    private var operationTimeout: DispatchWorkItem?
 
     override init() {
         super.init()
@@ -71,7 +71,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             detailText = "请先连接 B8X 并完成通知订阅"
             return
         }
-        write(Data([0x13]))
+        guard write(Data([0x13])) else { return }
         detailText = "正在请求设备状态…"
     }
 
@@ -87,48 +87,81 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             refreshStatus()
             return
         }
-        confirmationTimeout?.cancel()
-        confirmationTimeout = nil
+        operationTimeout?.cancel()
+        operationTimeout = nil
         do {
             _ = try control.expectedStatus(from: current)
             requestedControl = control
             awaitingConfirmation = nil
             isBusy = true
             lastCommandText = "正在读取最新状态，准备发送控制指令…"
-            write(Data([0x13]))
+            guard write(Data([0x13])) else {
+                requestedControl = nil
+                isBusy = false
+                lastCommandText = "状态请求未能写入，请检查连接后重试"
+                return
+            }
+            scheduleFreshStatusTimeout()
         } catch {
             lastCommandText = error.localizedDescription
         }
     }
 
-    private func write(_ data: Data) {
+    @discardableResult
+    private func write(_ data: Data) -> Bool {
         guard let peripheral = connectedPeripheral,
               let characteristic = writeCharacteristic else {
             detailText = "写入通道尚未就绪"
-            isBusy = false
-            return
+            return false
         }
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        return true
+    }
+
+    private func scheduleFreshStatusTimeout() {
+        operationTimeout?.cancel()
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.requestedControl != nil else { return }
+            self.requestedControl = nil
+            self.isBusy = false
+            self.operationTimeout = nil
+            self.lastCommandText = "读取最新设备状态超时，控制指令未发送。请检查连接后刷新状态。"
+        }
+        operationTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
+    }
+
+    private func scheduleConfirmationTimeout() {
+        operationTimeout?.cancel()
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.awaitingConfirmation != nil else { return }
+            self.awaitingConfirmation = nil
+            self.isBusy = false
+            self.operationTimeout = nil
+            self.lastCommandText = "设备确认超时。请刷新状态核对实际值，不要连续重复发送。"
+            self.refreshStatus()
+        }
+        operationTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timeout)
     }
 
     private func handleStatus(_ newStatus: B8XStatus) {
         status = newStatus
         if let control = requestedControl {
+            operationTimeout?.cancel()
+            operationTimeout = nil
             do {
                 let packet = try control.packet(using: newStatus)
                 awaitingConfirmation = try control.expectedStatus(from: newStatus)
                 requestedControl = nil
-                lastCommandText = "指令已发送，等待设备状态确认…"
-                write(packet)
-                let timeout = DispatchWorkItem { [weak self] in
-                    guard let self, self.awaitingConfirmation != nil else { return }
-                    self.awaitingConfirmation = nil
-                    self.isBusy = false
-                    self.lastCommandText = "设备确认超时。请刷新状态核对实际值，不要连续重复发送。"
-                    self.refreshStatus()
+                guard write(packet) else {
+                    awaitingConfirmation = nil
+                    isBusy = false
+                    lastCommandText = "控制指令未能写入，请检查蓝牙连接"
+                    return
                 }
-                confirmationTimeout = timeout
-                DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timeout)
+                lastCommandText = "指令已发送，等待设备状态确认…"
+                scheduleConfirmationTimeout()
                 return
             } catch {
                 requestedControl = nil
@@ -139,8 +172,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         }
         if let expected = awaitingConfirmation, expected.matches(newStatus) {
             awaitingConfirmation = nil
-            confirmationTimeout?.cancel()
-            confirmationTimeout = nil
+            operationTimeout?.cancel()
+            operationTimeout = nil
             isBusy = false
             lastCommandText = "设备已回报确认，控制成功"
         }
@@ -174,6 +207,11 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        operationTimeout?.cancel()
+        operationTimeout = nil
+        requestedControl = nil
+        awaitingConfirmation = nil
+        isBusy = false
         connectedPeripheral = peripheral
         connectedName = peripheral.name ?? "B8X"
         stateText = "已连接 \(connectedName ?? "B8X")"
@@ -202,8 +240,8 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         notificationReady = false
         requestedControl = nil
         awaitingConfirmation = nil
-        confirmationTimeout?.cancel()
-        confirmationTimeout = nil
+        operationTimeout?.cancel()
+        operationTimeout = nil
         isBusy = false
         status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
@@ -231,15 +269,17 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             detailText = "发现特征值失败：\(error.localizedDescription)"
             return
         }
-        for characteristic in service.characteristics ?? [] {
-            if characteristic.uuid == writeID { writeCharacteristic = characteristic }
-            if characteristic.uuid == notifyID { notifyCharacteristic = characteristic }
-        }
-        guard writeCharacteristic != nil, let notifyCharacteristic else {
-            detailText = "缺少 B8X 写入或通知特征值"
+        let characteristics = service.characteristics ?? []
+        guard let write = characteristics.first(where: { $0.uuid == writeID }),
+              write.properties.contains(.write),
+              let notify = characteristics.first(where: { $0.uuid == notifyID }),
+              notify.properties.contains(.notify) || notify.properties.contains(.indicate) else {
+            detailText = "缺少可写的 FFE1 或可通知的 FFE4 特征值"
             return
         }
-        peripheral.setNotifyValue(true, for: notifyCharacteristic)
+        writeCharacteristic = write
+        notifyCharacteristic = notify
+        peripheral.setNotifyValue(true, for: notify)
         detailText = "正在订阅设备状态通知…"
     }
 
@@ -280,8 +320,8 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             isBusy = false
             requestedControl = nil
             awaitingConfirmation = nil
-            confirmationTimeout?.cancel()
-            confirmationTimeout = nil
+            operationTimeout?.cancel()
+            operationTimeout = nil
             lastCommandText = "写入失败：\(error.localizedDescription)"
         }
     }
