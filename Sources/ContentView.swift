@@ -448,30 +448,39 @@ struct ContentView: View {
     private func copyDiagnosticLogs() {
         let status = bluetooth.status
         let currentFrame = status?.raw.map { String(format: "%02X", $0) }.joined(separator: " ") ?? "无"
+        let deviceName = bluetooth.connectedName ?? "未连接"
+        let model = bluetooth.modelNumber ?? "设备未公开"
+        let manufacturer = bluetooth.manufacturerName ?? "设备未公开"
+        let firmware = bluetooth.firmwareRevision ?? "设备未公开"
+        let mode = status.map { String($0.modeRaw) } ?? "无"
+        let wind = status.map { String($0.windLevel) } ?? "无"
+        let rpm = status.map { String($0.fanRPM) } ?? "无"
+        let cold = status.map { String($0.coldLevel) } ?? "无"
+        let history = bluetooth.rawFrameHistory.isEmpty ? "无" : bluetooth.rawFrameHistory.joined(separator: "\n")
         let lines = [
             "B8X OC Extreme 诊断日志",
-            "导出时间：\\(Date().formatted(date: .numeric, time: .standard))",
-            "设备：\\(bluetooth.connectedName ?? "未连接")",
-            "连接状态：\\(bluetooth.stateText)",
-            "设备详情：\\(bluetooth.detailText)",
-            "最后指令：\\(bluetooth.lastCommandText)",
+            "导出时间：\(Date().formatted(date: .numeric, time: .standard))",
+            "设备：\(deviceName)",
+            "连接状态：\(bluetooth.stateText)",
+            "设备详情：\(bluetooth.detailText)",
+            "最后指令：\(bluetooth.lastCommandText)",
             "",
             "【设备信息】",
-            "型号：\\(bluetooth.modelNumber ?? "设备未公开")",
-            "制造商：\\(bluetooth.manufacturerName ?? "设备未公开")",
-            "固件版本：\\(bluetooth.firmwareRevision ?? "设备未公开")",
+            "型号：\(model)",
+            "制造商：\(manufacturer)",
+            "固件版本：\(firmware)",
             "",
             "【当前状态】",
-            "原始帧：\\(currentFrame)",
-            "数据长度：\\(status?.raw.count ?? 0) bytes",
-            "模式：\\(status.map { String($0.modeRaw) } ?? "无")",
-            "风扇设定：\\(status.map { String($0.windLevel) } ?? "无")",
-            "实际转速：\\(status.map { String($0.fanRPM) } ?? "无")",
-            "制冷原始值：\\(status.map { String($0.coldLevel) } ?? "无")",
-            "帧差异：\\(bluetooth.statusFrameDeltaSummary)",
+            "原始帧：\(currentFrame)",
+            "数据长度：\(status?.raw.count ?? 0) bytes",
+            "模式：\(mode)",
+            "风扇设定：\(wind)",
+            "实际转速：\(rpm)",
+            "制冷原始值：\(cold)",
+            "帧差异：\(bluetooth.statusFrameDeltaSummary)",
             "",
             "【最近状态帧】",
-            bluetooth.rawFrameHistory.isEmpty ? "无" : bluetooth.rawFrameHistory.joined(separator: "\\n"),
+            history,
             "",
             "【GATT 服务与特征值】",
             bluetooth.gattInventory,
@@ -479,7 +488,7 @@ struct ContentView: View {
             "【温度保护】",
             bluetooth.thermalProtectionText
         ]
-        UIPasteboard.general.string = lines.joined(separator: "\\n")
+        UIPasteboard.general.string = lines.joined(separator: "\n")
         logsCopied = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             logsCopied = false
