@@ -15,7 +15,10 @@ struct B8XStatus: Equatable {
         guard bytes.count == 20, bytes[0] == 0x13 else {
             throw B8XProtocolError.invalidFrame
         }
-        guard bytes[8] <= 9, bytes[14] == 0 || bytes[14] == 255 else {
+        // These fields encode a base-100 value plus a two-digit remainder.
+        // Reject malformed remainders before they can reach command encoding.
+        guard bytes[5] <= 99, bytes[8] <= 9, bytes[13] <= 99,
+              bytes[14] == 0 || bytes[14] == 255 else {
             throw B8XProtocolError.invalidFields
         }
         let signedCold = Int(Int8(bitPattern: bytes[7]))
@@ -59,12 +62,24 @@ enum B8XControl {
     case wind(Int)
     case cold(Int)
 
-    func expectedStatus(from status: B8XStatus) throws -> B8XStatusExpectation {
-        if case .light = self {
-            // The light command is independent of the mode fields.
-        } else if status.modeRaw != 0 && status.modeRaw != 1 {
+    private func validateCurrentSettings(_ status: B8XStatus) throws {
+        guard status.modeRaw == 0 || status.modeRaw == 1 else {
             throw B8XProtocolError.unsupportedMode
         }
+        guard (4000...4500).contains(status.windLevel),
+              status.windLevel % 100 == 0 else {
+            throw B8XProtocolError.invalidWindLevel
+        }
+        guard (92...175).contains(status.coldLevel) else {
+            throw B8XProtocolError.invalidColdLevel
+        }
+    }
+
+    func expectedStatus(from status: B8XStatus) throws -> B8XStatusExpectation {
+        if case .light(let enabled) = self {
+            return .light(enabled)
+        }
+        try validateCurrentSettings(status)
         switch self {
         case .light(let enabled):
             return .light(enabled)
@@ -83,23 +98,20 @@ enum B8XControl {
     }
 
     func packet(using status: B8XStatus) throws -> Data {
+        // Apply the same validation even when packet() is called directly.
+        _ = try expectedStatus(from: status)
         switch self {
         case .light(let enabled):
             return Data([0x10, enabled ? 0xff : 0x00])
         case .mode(let mode):
-            guard mode == 0 || mode == 1 else { throw B8XProtocolError.unsupportedMode }
             return Data([0x20, UInt8(mode), UInt8(status.coldLevel),
                          UInt8(status.windLevel / 100), UInt8(status.windLevel % 100),
                          status.raw[6], 92, 40, 0])
         case .wind(let value):
-            guard (4000...4500).contains(value), value % 100 == 0 else {
-                throw B8XProtocolError.invalidWindLevel
-            }
             return Data([0x20, UInt8(status.modeRaw), UInt8(status.coldLevel),
                          UInt8(value / 100), UInt8(value % 100),
                          status.raw[6], 92, 40, 0])
         case .cold(let value):
-            guard (92...175).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return Data([0x20, UInt8(status.modeRaw), UInt8(value),
                          UInt8(status.windLevel / 100), UInt8(status.windLevel % 100),
                          status.raw[6], 92, 40, 0])
