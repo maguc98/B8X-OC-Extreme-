@@ -479,6 +479,24 @@ struct ContentView: View {
                         .font(.system(size: 8, weight: .medium))
                         .foregroundStyle(bluetooth.isCapturingLightingAction ? Studio.coral : Studio.muted)
                         .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button { bluetooth.probeLightingProtocol() } label: {
+                            actionPill("只读查询灯效配置（51 00）", icon: "magnifyingglass")
+                        }
+                        .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
+                        Spacer(minLength: 0)
+                    }
+                    Text(bluetooth.lightingProtocolProbeText)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(Studio.goldInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let probeFrame = bluetooth.lightingProtocolProbeRawFrame {
+                        Text("候选回包：\\(probeFrame)")
+                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Studio.violetInk)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if !bluetooth.physicalActionMarkers.isEmpty {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("实体按键动作标记（点击标记按钮后立即双击）")
