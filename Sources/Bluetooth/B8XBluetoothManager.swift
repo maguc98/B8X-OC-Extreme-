@@ -158,8 +158,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             if current.coldTemperature > 7 { lowProtectionLatched = false }
             if current.coldTemperature <= 5, !lowProtectionLatched {
                 lowProtectionLatched = true
-                thermalProtectionText = "低温保护触发：制冷已请求降至最低档 92"
-                send(.cold(92))
+                thermalProtectionText = "低温保护触发：制冷已请求降至最低档 1"
+                send(.cold(1))
                 return
             }
         }
