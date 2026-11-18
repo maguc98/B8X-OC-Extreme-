@@ -318,10 +318,10 @@ struct ContentView: View {
                 controlSlider(
                     title: "风扇转速",
                     valueText: "\(Int(windSelection)) RPM",
-                    rangeText: "4,000 — 4,500 RPM",
+                    rangeText: "4,000 — 8,000 RPM · 1 RPM 步进",
                     value: $windSelection,
-                    range: 4000...4500,
-                    step: 100,
+                    range: 4000...8000,
+                    step: 1,
                     tint: B8XPalette.cyan,
                     isUnchanged: Int(windSelection) == status.windLevel,
                     apply: { bluetooth.setWind(Int(windSelection)) },
@@ -331,9 +331,9 @@ struct ContentView: View {
                 controlSlider(
                     title: "制冷档位",
                     valueText: "\(Int(coldSelection))",
-                    rangeText: "协议档位 · 92 — 175",
+                    rangeText: "单字节协议可表示范围 · 92 — 255",
                     value: $coldSelection,
-                    range: 92...175,
+                    range: 92...255,
                     step: 1,
                     tint: B8XPalette.green,
                     isUnchanged: Int(coldSelection) == status.coldLevel,
@@ -555,7 +555,7 @@ struct ContentView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(B8XPalette.green)
-            Text("当前开放已验证的常规范围：风扇 4,000–4,500 RPM，制冷原始值 92–175。未验证的超频数值不会写入设备。")
+            Text("风扇设定范围已扩展至 4,000–8,000 RPM（1 RPM 步进）；制冷原始档位目前开放 92–255。300 档超出当前单字节协议表示范围，暂不发送。")
                 .font(.system(size: 9))
                 .foregroundStyle(B8XPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
