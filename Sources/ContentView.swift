@@ -9,33 +9,36 @@ struct ContentView: View {
     @State private var hasColdDraft = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                InstrumentBackdrop()
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 15) {
-                        header
-                        connectionPanel
-                        if let status = bluetooth.status {
-                            livePanel(status)
-                            telemetryGrid(status)
-                            controlsPanel(status)
-                        } else {
-                            waitingPanel
-                        }
-                        devicePanel
-                        diagnosticsPanel
-                        safetyFooter
+        ZStack {
+            InstrumentBackdrop()
+                .ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 15) {
+                    header
+                    connectionPanel
+                    if let status = bluetooth.status {
+                        livePanel(status)
+                        telemetryGrid(status)
+                        controlsPanel(status)
+                    } else {
+                        waitingPanel
                     }
-                    .padding(.horizontal, 17)
-                    .padding(.top, 10)
-                    .padding(.bottom, 30)
-                    .frame(maxWidth: 620)
-                    .frame(maxWidth: .infinity)
+                    devicePanel
+                    diagnosticsPanel
+                    safetyFooter
                 }
+                .padding(.horizontal, 17)
+                .padding(.top, 10)
+                .padding(.bottom, 36)
+                .frame(maxWidth: 620)
+                .frame(maxWidth: .infinity)
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scrollBounceBehavior(.basedOnSize)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .onChange(of: bluetooth.status) { status in
             guard let status else {
