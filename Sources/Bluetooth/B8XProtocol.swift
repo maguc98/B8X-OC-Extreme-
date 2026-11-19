@@ -59,6 +59,10 @@ enum B8XDualTemperatureController {
     static let minimumAutomaticCoolingLevel = 92
     static let maximumAutomaticCoolingLevel = 175
 
+    // Ignore implausible telemetry rather than driving hardware from a bad sensor frame.
+    static let plausibleColdTemperatureRange: ClosedRange<Double> = -20.0...60.0
+    static let plausibleHotTemperatureRange: ClosedRange<Double> = -20.0...100.0
+
     static func nextSettings(
         from status: B8XStatus,
         targets: B8XDualTemperatureTargets,
@@ -66,60 +70,83 @@ enum B8XDualTemperatureController {
         highTemperatureProtectionEnabled: Bool = true
     ) -> B8XAutomaticSettings? {
         guard coldTargetRange.contains(targets.coldCelsius),
-              hotTargetRange.contains(targets.hotCelsius) else { return nil }
+              hotTargetRange.contains(targets.hotCelsius),
+              plausibleColdTemperatureRange.contains(status.coldTemperature),
+              plausibleHotTemperatureRange.contains(Double(status.hotTemperature)) else {
+            return nil
+        }
 
-        // A reported 255 cooling value has appeared in diagnostic captures
-        // and is outside the normal reference range. Do not amplify it.
-        let currentCooling = (minimumAutomaticCoolingLevel...maximumAutomaticCoolingLevel)
-            .contains(status.coldLevel) ? status.coldLevel : 110
+        // Keep the controller proportional in small, bounded steps. The B8X
+        // cooling byte is not a calibrated temperature scale, so never infer
+        // a linear °C-to-level conversion.
+        let reportedCoolingIsPlausible =
+            (minimumAutomaticCoolingLevel...maximumAutomaticCoolingLevel).contains(status.coldLevel)
+        let currentCooling = reportedCoolingIsPlausible ? status.coldLevel : 110
         let currentFan = min(max(status.windLevel, minimumAutomaticFanRPM),
                              maximumAutomaticFanRPM)
 
         let coldError = status.coldTemperature - targets.coldCelsius
-        var nextCooling = currentCooling
+        var coolingDelta = 0
         var reasons: [String] = []
 
         if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
-            nextCooling = minimumAutomaticCoolingLevel
+            coolingDelta = minimumAutomaticCoolingLevel - currentCooling
             reasons.append("冷端低温保护")
-        } else if coldError >= 4.0 {
-            nextCooling += 6
+        } else if coldError >= 6.0 {
+            coolingDelta = 6
+            reasons.append("冷端明显偏热，增加制冷")
+        } else if coldError >= 3.0 {
+            coolingDelta = 4
             reasons.append("冷端偏热，增加制冷")
         } else if coldError >= 1.5 {
-            nextCooling += 3
-            reasons.append("冷端偏热，微增制冷")
-        } else if coldError <= -4.0 {
-            nextCooling -= 6
+            coolingDelta = 2
+            reasons.append("冷端轻微偏热，微增制冷")
+        } else if coldError <= -6.0 {
+            coolingDelta = -6
+            reasons.append("冷端明显偏冷，降低制冷")
+        } else if coldError <= -3.0 {
+            coolingDelta = -4
             reasons.append("冷端偏冷，降低制冷")
         } else if coldError <= -1.5 {
-            nextCooling -= 3
-            reasons.append("冷端偏冷，微降制冷")
+            coolingDelta = -2
+            reasons.append("冷端轻微偏冷，微降制冷")
         }
 
         let hotError = Double(status.hotTemperature) - targets.hotCelsius
-        var nextFan = currentFan
+        var fanDelta = 0
         if highTemperatureProtectionEnabled && status.hotTemperature >= 45 {
-            nextFan = maximumAutomaticFanRPM
+            fanDelta = maximumAutomaticFanRPM - currentFan
             reasons.append("热端高温保护")
-        } else if hotError >= 4.0 {
-            nextFan += 600
+        } else if hotError >= 6.0 {
+            fanDelta = 600
+            reasons.append("热端明显偏热，提高风扇")
+        } else if hotError >= 3.0 {
+            fanDelta = 400
             reasons.append("热端偏热，提高风扇")
         } else if hotError >= 1.5 {
-            nextFan += 300
-            reasons.append("热端偏热，微增风扇")
-        } else if hotError <= -4.0 {
-            nextFan -= 600
+            fanDelta = 200
+            reasons.append("热端轻微偏热，微增风扇")
+        } else if hotError <= -6.0 {
+            fanDelta = -600
+            reasons.append("热端明显低于目标，降低风扇")
+        } else if hotError <= -3.0 {
+            fanDelta = -400
             reasons.append("热端低于目标，降低风扇")
         } else if hotError <= -1.5 {
-            nextFan -= 300
-            reasons.append("热端低于目标，微降风扇")
+            fanDelta = -200
+            reasons.append("热端轻微低于目标，微降风扇")
         }
 
-        nextCooling = min(max(nextCooling, minimumAutomaticCoolingLevel),
-                          maximumAutomaticCoolingLevel)
-        nextFan = min(max(nextFan, minimumAutomaticFanRPM), maximumAutomaticFanRPM)
+        let nextCooling = min(max(currentCooling + coolingDelta,
+                                  minimumAutomaticCoolingLevel),
+                              maximumAutomaticCoolingLevel)
+        let nextFan = min(max(currentFan + fanDelta,
+                              minimumAutomaticFanRPM),
+                          maximumAutomaticFanRPM)
 
-        guard nextCooling != status.coldLevel || nextFan != status.windLevel else { return nil }
+        // Do not issue a corrective write merely because a single telemetry
+        // byte is anomalous. Wait until a real temperature error calls for it.
+        guard nextCooling != currentCooling || nextFan != currentFan else { return nil }
         return B8XAutomaticSettings(
             fanRPM: nextFan,
             coolingLevel: nextCooling,
