@@ -15,6 +15,8 @@ Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phon
 - Dual-temperature thermostat: users set separate cold-side and hot-side targets. An app-side feedback controller adjusts the combined fan and cooling settings in small steps using the existing 0x20 packet.
 - The thermostat polls every 3 seconds and spaces automatic adjustments by at least 8 seconds. Cold target range is 10–25°C; hot target range is 30–42°C. Normal automatic cooling is clamped to 92–175, fan target to 4,000–6,000 RPM.
 - The old local-only lighting-effects studio and unverified lighting-protocol probe have been removed. The verified hardware light power toggle remains available.
+- Dual-temperature thermostat: independent cold-side (10–25°C) and hot-side (30–42°C) targets. An app-side closed-loop controller uses the existing combined settings command to make small cooling-level and fan-target adjustments, with deadbands, output bounds, and low/high temperature protection.
+- The thermostat polls every 3 seconds while active and allows at least 8 seconds between adjustment writes. It pauses on Bluetooth disconnect, status timeout, unconfirmed writes, or when the app leaves the foreground. It does not restore native AUTO mode on stop.
 - Run protocol unit tests with SwiftPM in GitHub Actions before the Xcode iOS build and unsigned IPA packaging.
 
 ## Current protocol reference
@@ -59,6 +61,8 @@ Requires Swift 5.9+, macOS, Xcode, and XcodeGen.
 - Fan settings outside the public reference's ordinary range (below 4000 or above 4500 RPM) are experimental; the app-side limits are 1–6000 RPM.
 - Cooling settings outside the reference-validated 92–175 range are experimental; the app-side limits are 1–255.
 - No firmware update, factory reset, or thermal-protection bypass is implemented.
+- The dual-temperature thermostat is app-side control, not firmware-level regulation. It requires the app to remain active in the foreground and has not yet been validated on the user's physical B8X. Temperature may oscillate around the selected targets; avoid cooling below ambient dew point to prevent condensation.
+- RGB and lighting-effect writes are not implemented because a B8X-specific write protocol has not been verified. The local-only lighting studio and unverified lighting probes have been removed.
 - The reference project has not established that the full fan or cooling ranges are supported by all B8X firmware revisions.
 - Keep the cooler's original thermal protections enabled.
 - The dual-temperature controller is app-side, not firmware-level. It requires the iOS app to remain in the foreground and connected to B8X; iOS suspension, app termination, or Bluetooth disconnection pauses regulation.
