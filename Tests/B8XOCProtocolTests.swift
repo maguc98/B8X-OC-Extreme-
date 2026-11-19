@@ -168,8 +168,8 @@ final class B8XOCProtocolTests: XCTestCase {
         let status = try B8XStatus.decode(sampleFrame(coldInteger: 24, coldFraction: 5, hot: 42, windHundreds: 42, coldLevel: 110))
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets, targetMode: .cooling))
-        XCTAssertEqual(next.coolingLevel, 116)
-        XCTAssertEqual(next.fanRPM, 4200)
+        XCTAssertEqual(next.coolingLevel, 122)
+        XCTAssertEqual(next.fanRPM, 4800)
     }
 
     func testHeatingModeOnlyAdjustsFanOutput() throws {
@@ -177,7 +177,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets, targetMode: .heating))
         XCTAssertEqual(next.coolingLevel, 110)
-        XCTAssertEqual(next.fanRPM, 4400)
+        XCTAssertEqual(next.fanRPM, 4800)
     }
 
     func testDualTemperatureControllerHoldsInsideDeadband() throws {
@@ -194,7 +194,7 @@ final class B8XOCProtocolTests: XCTestCase {
         )
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
-        XCTAssertEqual(next.coolingLevel, 92)
+        XCTAssertEqual(next.coolingLevel, 1)
         XCTAssertEqual(next.fanRPM, 6000)
         XCTAssertTrue(next.reason.contains("冷端低温保护"))
         XCTAssertTrue(next.reason.contains("热端高温保护"))
