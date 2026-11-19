@@ -122,28 +122,33 @@ enum B8XDualTemperatureController {
                 reasons.append("冷端轻微偏冷：微降制冷与风扇")
             }
         } else {
-            // Heat-side management remains fan-only; the B8X has no verified heater.
-            if highTemperatureProtectionEnabled && status.hotTemperature >= 45 {
-                fanDelta = maximumAutomaticFanRPM - currentFan
-                reasons.append("热端高温保护：风扇升至上限")
-            } else if hotError >= 6.0 {
-                fanDelta = 600
-                reasons.append("热端明显偏热，提高风扇")
-            } else if hotError >= 3.0 {
-                fanDelta = 400
-                reasons.append("热端偏热，提高风扇")
-            } else if hotError >= 1.5 {
-                fanDelta = 200
-                reasons.append("热端轻微偏热，微增风扇")
-            } else if hotError <= -6.0 {
+            // Heat-side target uses the opposite coupling direction:
+            // below target -> raise cooling output and reduce fan speed;
+            // above target -> lower cooling output and raise fan speed.
+            if hotError <= -6.0 {
+                coolingDelta = 12
                 fanDelta = -600
-                reasons.append("热端明显低于目标，降低风扇")
+                reasons.append("热端明显低于目标：提高制冷档位、降低风扇")
             } else if hotError <= -3.0 {
+                coolingDelta = 8
                 fanDelta = -400
-                reasons.append("热端低于目标，降低风扇")
+                reasons.append("热端低于目标：提高制冷档位、降低风扇")
             } else if hotError <= -1.5 {
+                coolingDelta = 2
                 fanDelta = -200
-                reasons.append("热端轻微低于目标，微降风扇")
+                reasons.append("热端轻微低于目标：微增制冷档位、微降风扇")
+            } else if hotError >= 6.0 {
+                coolingDelta = -12
+                fanDelta = 600
+                reasons.append("热端明显高于目标：降低制冷档位、提高风扇")
+            } else if hotError >= 3.0 {
+                coolingDelta = -8
+                fanDelta = 400
+                reasons.append("热端高于目标：降低制冷档位、提高风扇")
+            } else if hotError >= 1.5 {
+                coolingDelta = -2
+                fanDelta = 200
+                reasons.append("热端轻微高于目标：微降制冷档位、微增风扇")
             }
         }
 
