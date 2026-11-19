@@ -44,9 +44,9 @@ struct ThermostatView: View {
             sectionTitle("控制模式", note: "SELECT ONE TARGET")
             HStack(spacing: 9) {
                 modeButton("制冷恒温", detail: "联动调节制冷档位与风扇", mode: .cooling, tint: ThermostatPalette.blueInk, wash: ThermostatPalette.sky)
-                modeButton("制热", detail: "仅管理散热风扇", mode: .heating, tint: ThermostatPalette.coral, wash: ThermostatPalette.peach)
+                modeButton("制热", detail: "制冷档位与风扇反向联动", mode: .heating, tint: ThermostatPalette.coral, wash: ThermostatPalette.peach)
             }
-            Text("运行期间锁定模式，停止后可切换。制热模式仅通过风扇管理热端温度，B8X 不具备已验证的主动加热能力。")
+            Text("运行期间锁定模式，停止后可切换。制热模式通过提高制冷档位、降低风扇来升高热端温度；需要降低热端温度时则降低档位、提高风扇。B8X 不具备已验证的主动加热能力。")
                 .font(.system(size: 8, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -114,7 +114,7 @@ struct ThermostatView: View {
                         .background(ThermostatPalette.peach, in: RoundedRectangle(cornerRadius: 11))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("热端目标").font(.system(size: 11, weight: .bold)).foregroundStyle(ThermostatPalette.ink)
-                        Text("控制散热风扇").font(.system(size: 8, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
+                        Text("联动制冷档位与风扇").font(.system(size: 8, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
                     }
                     Spacer()
                     Text(String(format: "%.0f°C", hotTarget))
@@ -136,7 +136,7 @@ struct ThermostatView: View {
                 .foregroundStyle(ThermostatPalette.muted)
             }
 
-            Text("制冷恒温以冷端目标为依据，联动调整制冷档位（1–255）与风扇设定（1,000–6,000 RPM）：需要升温时同时降低两者，需要降温时同时提高两者。实际温度会有惯性与波动，不承诺精确锁定单一数值。")
+            Text("制冷恒温以冷端目标为依据：需要升温时同时降低制冷档位与风扇转速，需要降温时同时提高两者。制热模式以热端目标为依据：热端低于目标时提高制冷档位、降低风扇转速；热端高于目标时降低制冷档位、提高风扇转速。制冷档位范围 1–255，风扇范围 1,000–6,000 RPM。实际温度会有惯性与波动，不承诺精确锁定单一数值。")
                 .font(.system(size: 8, weight: .medium))
                 .foregroundStyle(ThermostatPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
