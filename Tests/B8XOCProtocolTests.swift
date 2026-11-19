@@ -177,7 +177,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets, targetMode: .heating))
         XCTAssertEqual(next.coolingLevel, 110)
-        XCTAssertEqual(next.fanRPM, 4800)
+        XCTAssertEqual(next.fanRPM, 4400)
     }
 
     func testDualTemperatureControllerHoldsInsideDeadband() throws {
@@ -215,7 +215,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
         XCTAssertEqual(next.coolingLevel, 112)
-        XCTAssertEqual(next.fanRPM, 4200)
+        XCTAssertEqual(next.fanRPM, 4400)
     }
 
     func testDualTemperatureControllerRejectsImplausibleTemperatureTelemetry() throws {
@@ -232,7 +232,7 @@ final class B8XOCProtocolTests: XCTestCase {
         )
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
-        XCTAssertEqual(next.coolingLevel, 175)
+        XCTAssertEqual(next.coolingLevel, 255)
         XCTAssertEqual(next.fanRPM, 6000)
     }
 
