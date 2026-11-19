@@ -13,7 +13,6 @@ final class B8XOCProtocolTests: XCTestCase {
         fanRemainder: UInt8 = 25,
         light: UInt8 = 255,
         coldLevel: UInt8 = 110,
-        lightingEffect: UInt8 = 0
     ) -> Data {
         var bytes = [UInt8](repeating: 0, count: 20)
         bytes[0] = 0x13
@@ -27,7 +26,6 @@ final class B8XOCProtocolTests: XCTestCase {
         bytes[12] = fanHundreds
         bytes[13] = fanRemainder
         bytes[14] = light
-        bytes[15] = lightingEffect
         return Data(bytes)
     }
 
@@ -44,40 +42,6 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertEqual(status.raw, [UInt8](frame))
     }
 
-
-    func testCandidateLightingEffectNamesAreReadOnlyTelemetryHints() throws {
-        let candidates: [(UInt8, String)] = [
-            (0x03, "流光"),
-            (0x04, "切换"),
-            (0x05, "呼吸"),
-            (0x06, "渐变"),
-            (0x0B, "常亮"),
-            (0x0C, "变频旋转"),
-            (0x10, "多色旋转"),
-            (0x11, "跳动")
-        ]
-
-        for (code, name) in candidates {
-            let status = try B8XStatus.decode(sampleFrame(lightingEffect: code))
-            XCTAssertEqual(status.raw[15], code)
-            XCTAssertEqual(status.candidateLightingEffectName, name)
-        }
-
-        let unknown = try B8XStatus.decode(sampleFrame(lightingEffect: 0x7F))
-        XCTAssertNil(unknown.candidateLightingEffectName)
-        XCTAssertEqual(try B8XControl.light(true).packet(using: unknown),
-                       Data([0x10, 0xFF]))
-    }
-
-    func testLEDConfigurationReadProbeUsesCurrentCandidateEffectID() {
-        XCTAssertEqual(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x0B),
-                       Data([0x51, 0x0B]))
-        XCTAssertEqual(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x10),
-                       Data([0x51, 0x10]))
-        XCTAssertNil(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x00))
-        XCTAssertNil(B8XLightingProtocolProbe.readConfiguration(forEffect: 0x7F))
-        XCTAssertEqual(B8XLightingProtocolProbe.responseCommand, 0x51)
-    }
 
     func testLightControlPacketsMatchB8XReferenceAndConfirmReportedState() throws {
         let before = try B8XStatus.decode(sampleFrame(light: 255))
@@ -199,4 +163,54 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertTrue(expectation.matches(matching))
         XCTAssertFalse(expectation.matches(mismatching))
     }
+
+    func testDualTemperatureControllerRaisesCoolingAndFanForHotSide() throws {
+        let status = try B8XStatus.decode(
+            sampleFrame(coldInteger: 24, coldFraction: 5, hot: 42, windHundreds: 42, coldLevel: 110)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+        XCTAssertEqual(next.coolingLevel, 116)
+        XCTAssertEqual(next.fanRPM, 4500)
+    }
+
+    func testDualTemperatureControllerHoldsInsideDeadband() throws {
+        let status = try B8XStatus.decode(
+            sampleFrame(coldInteger: 15, coldFraction: 0, hot: 40, windHundreds: 42, coldLevel: 110)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        XCTAssertNil(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+    }
+
+    func testDualTemperatureControllerAppliesBothTemperatureSafetyLimits() throws {
+        let status = try B8XStatus.decode(
+            sampleFrame(coldInteger: 4, coldFraction: 9, hot: 45, windHundreds: 42, coldLevel: 130)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+        XCTAssertEqual(next.coolingLevel, 92)
+        XCTAssertEqual(next.fanRPM, 6000)
+        XCTAssertTrue(next.reason.contains("冷端低温保护"))
+        XCTAssertTrue(next.reason.contains("热端高温保护"))
+    }
+
+    func testDualTemperatureControllerNormalizesAnomalousCoolingTelemetry() throws {
+        let status = try B8XStatus.decode(
+            sampleFrame(coldInteger: 24, coldFraction: 5, hot: 38, windHundreds: 42, coldLevel: 255)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 24.5, hotCelsius: 38)
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+        XCTAssertEqual(next.coolingLevel, 110)
+        XCTAssertEqual(next.fanRPM, 4200)
+    }
+
+    func testDualTemperatureControllerRejectsOutOfRangeTargets() throws {
+        let status = try B8XStatus.decode(sampleFrame())
+        XCTAssertNil(B8XDualTemperatureController.nextSettings(
+            from: status,
+            targets: B8XDualTemperatureTargets(coldCelsius: 5, hotCelsius: 50)
+        ))
+    }
+
+
 }
