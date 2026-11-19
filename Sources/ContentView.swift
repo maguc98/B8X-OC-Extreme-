@@ -96,26 +96,68 @@ struct ContentView: View {
     }
 
     private var tabBar: some View {
-        HStack(spacing: 5) {
-            ForEach(AppTab.allCases, id: \.self) { item in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { tab = item }
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: item == tab ? item.selectedIcon : item.icon)
-                            .font(.system(size: 17, weight: .semibold)).frame(height: 20)
-                        Text(item.title).font(.system(size: 9, weight: .bold))
-                    }
-                    .foregroundStyle(item == tab ? Studio.ink : Studio.muted)
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                    .background(item == tab ? item.tint : .clear, in: RoundedRectangle(cornerRadius: 15))
-                }
-                .buttonStyle(.plain)
+        HStack(alignment: .center, spacing: 0) {
+            HStack(spacing: 3) {
+                tabButton(.overview)
+                tabButton(.controls)
+                tabButton(.thermostat)
             }
+            .padding(5)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.78), lineWidth: 1))
+            .shadow(color: Studio.ink.opacity(0.10), radius: 14, x: 0, y: 5)
+
+            Spacer(minLength: 18)
+
+            HStack(spacing: 3) {
+                tabButton(.devices)
+                tabButton(.diagnostics)
+            }
+            .padding(5)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.78), lineWidth: 1))
+            .shadow(color: Studio.ink.opacity(0.10), radius: 14, x: 0, y: 5)
         }
-        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 7)
-        .background(.white.opacity(0.98))
-        .overlay(alignment: .top) { Rectangle().fill(Studio.line).frame(height: 1) }
+        .padding(.horizontal, 13)
+        .padding(.top, 8)
+        .padding(.bottom, 5)
+        .frame(maxWidth: 620)
+        .frame(maxWidth: .infinity)
+        .background {
+            LinearGradient(
+                colors: [Studio.canvas.opacity(0.02), Studio.canvas.opacity(0.78)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        }
+    }
+
+    private func tabButton(_ item: AppTab) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.30, dampingFraction: 0.78)) {
+                tab = item
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: item == tab ? item.selectedIcon : item.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(height: 20)
+                Text(item.title)
+                    .font(.system(size: 9, weight: .bold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(item == tab ? Studio.ink : Studio.muted)
+            .frame(width: 47, height: 49)
+            .background(
+                item == tab ? item.tint.opacity(0.92) : .clear,
+                in: Capsule()
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(item.title)
+        .accessibilityAddTraits(item == tab ? .isSelected : [])
     }
 
     private var overview: some View {
