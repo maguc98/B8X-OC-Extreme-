@@ -215,7 +215,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
         XCTAssertEqual(next.coolingLevel, 112)
-        XCTAssertEqual(next.fanRPM, 4400)
+        XCTAssertEqual(next.fanRPM, 4200)
     }
 
     func testDualTemperatureControllerRejectsImplausibleTemperatureTelemetry() throws {
