@@ -822,7 +822,9 @@ private struct SpeedDial: View {
             Circle().trim(from: 0, to: 280 / 360).stroke(Studio.track, style: StrokeStyle(lineWidth: 12, lineCap: .round)).rotationEffect(.degrees(130))
             Circle().trim(from: 0, to: 280 / 360 * progress)
                 .stroke(AngularGradient(colors: [Studio.blue, Studio.violet, Studio.pink, Studio.blue], center: .center), style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                .rotationEffect(.degrees(130)).animation(.spring(response: 0.62, dampingFraction: 0.76), value: progress).shadow(color: Studio.blue.opacity(0.25), radius: 6)
+                .animation(.spring(response: 0.62, dampingFraction: 0.76), value: progress)
+                .rotationEffect(.degrees(130))
+                .shadow(color: Studio.blue.opacity(0.25), radius: 6)
             VStack(spacing: 4) {
                 Text("ACTUAL SPEED").font(.system(size: 8, weight: .heavy, design: .rounded)).tracking(1.4).foregroundStyle(Studio.muted)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
