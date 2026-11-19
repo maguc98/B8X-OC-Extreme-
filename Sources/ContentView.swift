@@ -218,7 +218,7 @@ struct ContentView: View {
                                 .frame(width: 36, height: 36).background(Studio.sky, in: RoundedRectangle(cornerRadius: 11))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("低温保护").font(.system(size: 11, weight: .bold)).foregroundStyle(Studio.ink)
-                                Text("自动模式生效；手动模式不会覆盖你设定的制冷档位").font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
+                                Text("自动/手动模式均生效；冷端 ≤ 5°C 时制冷自动降至最低档 1").font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                             }
                             Spacer()
                             Toggle("低温保护", isOn: $lowTemperatureProtectionEnabled).labelsHidden().tint(Studio.blue)
