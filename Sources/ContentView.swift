@@ -96,7 +96,7 @@ struct ContentView: View {
     }
 
     private var tabBar: some View {
-        HStack(alignment: .center, spacing: 0) {
+        HStack(alignment: .center, spacing: 10) {
             HStack(spacing: 3) {
                 tabButton(.overview)
                 tabButton(.controls)
@@ -107,8 +107,6 @@ struct ContentView: View {
             .overlay(Capsule().stroke(.white.opacity(0.78), lineWidth: 1))
             .shadow(color: Studio.ink.opacity(0.10), radius: 14, x: 0, y: 5)
 
-            Spacer(minLength: 18)
-
             HStack(spacing: 3) {
                 tabButton(.devices)
                 tabButton(.diagnostics)
@@ -118,6 +116,7 @@ struct ContentView: View {
             .overlay(Capsule().stroke(.white.opacity(0.78), lineWidth: 1))
             .shadow(color: Studio.ink.opacity(0.10), radius: 14, x: 0, y: 5)
         }
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 13)
         .padding(.top, 8)
         .padding(.bottom, 5)
