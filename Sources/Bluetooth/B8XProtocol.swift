@@ -119,7 +119,7 @@ enum B8XDualTemperatureController {
                           maximumAutomaticCoolingLevel)
         nextFan = min(max(nextFan, minimumAutomaticFanRPM), maximumAutomaticFanRPM)
 
-        guard nextCooling != currentCooling || nextFan != currentFan else { return nil }
+        guard nextCooling != status.coldLevel || nextFan != status.windLevel else { return nil }
         return B8XAutomaticSettings(
             fanRPM: nextFan,
             coolingLevel: nextCooling,
