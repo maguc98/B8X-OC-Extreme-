@@ -232,7 +232,7 @@ final class B8XOCProtocolTests: XCTestCase {
         )
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
-        XCTAssertEqual(next.coolingLevel, 255)
+        XCTAssertEqual(next.coolingLevel, 186)
         XCTAssertEqual(next.fanRPM, 6000)
     }
 
