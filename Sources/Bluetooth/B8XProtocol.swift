@@ -13,21 +13,6 @@ struct B8XStatus: Equatable {
     /// The B8X reports mode 0 as automatic and mode 1 as manual.
     var isAutomaticMode: Bool { modeRaw == 0 }
 
-    /// Hypothesis only: byte 15 matches known Flydigi LED effect IDs.
-    /// This is diagnostic metadata, not a verified B8X control mapping.
-    var candidateLightingEffectName: String? {
-        switch raw[15] {
-        case 0x03: return "流光"
-        case 0x04: return "切换"
-        case 0x05: return "呼吸"
-        case 0x06: return "渐变"
-        case 0x0B: return "常亮"
-        case 0x0C: return "变频旋转"
-        case 0x10: return "多色旋转"
-        case 0x11: return "跳动"
-        default: return nil
-        }
-    }
 
     static func decode(_ data: Data) throws -> B8XStatus {
         let bytes = [UInt8](data)
@@ -53,21 +38,93 @@ struct B8XStatus: Equatable {
     }
 }
 
-/// Candidate read-only LED configuration query documented by the B6/B6X
-/// protocol research. B8X support is NOT assumed; this is sent only when the
-/// user explicitly starts the diagnostic probe. No LED write command is
-/// exposed until a B8X response has been independently validated.
-enum B8XLightingProtocolProbe {
-    static let responseCommand: UInt8 = 0x51
-    static let candidateEffectIDs: Set<UInt8> = [
-        0x03, 0x04, 0x05, 0x06, 0x0B, 0x0C, 0x10, 0x11
-    ]
+struct B8XDualTemperatureTargets: Equatable {
+    let coldCelsius: Double
+    let hotCelsius: Double
+}
 
-    /// B6/B6X documents 0x51 followed by the effect type to read.
-    /// This is only a candidate for B8X and must be explicitly requested.
-    static func readConfiguration(forEffect effectID: UInt8) -> Data? {
-        guard candidateEffectIDs.contains(effectID) else { return nil }
-        return Data([responseCommand, effectID])
+struct B8XAutomaticSettings: Equatable {
+    let fanRPM: Int
+    let coolingLevel: Int
+    let reason: String
+}
+
+/// Conservative app-side closed-loop controller. It uses only the verified
+/// combined 0x20 settings packet; it does not rely on undocumented LED fields.
+enum B8XDualTemperatureController {
+    static let coldTargetRange: ClosedRange<Double> = 10.0...25.0
+    static let hotTargetRange: ClosedRange<Double> = 30.0...42.0
+    static let minimumAutomaticFanRPM = 4000
+    static let maximumAutomaticFanRPM = 6000
+    static let minimumAutomaticCoolingLevel = 92
+    static let maximumAutomaticCoolingLevel = 175
+
+    static func nextSettings(
+        from status: B8XStatus,
+        targets: B8XDualTemperatureTargets,
+        lowTemperatureProtectionEnabled: Bool = true,
+        highTemperatureProtectionEnabled: Bool = true
+    ) -> B8XAutomaticSettings? {
+        guard coldTargetRange.contains(targets.coldCelsius),
+              hotTargetRange.contains(targets.hotCelsius) else { return nil }
+
+        // A reported 255 cooling value has appeared in diagnostic captures
+        // and is outside the normal reference range. Do not amplify it.
+        let currentCooling = (minimumAutomaticCoolingLevel...maximumAutomaticCoolingLevel)
+            .contains(status.coldLevel) ? status.coldLevel : 110
+        let currentFan = min(max(status.windLevel, minimumAutomaticFanRPM),
+                             maximumAutomaticFanRPM)
+
+        let coldError = status.coldTemperature - targets.coldCelsius
+        var nextCooling = currentCooling
+        var reasons: [String] = []
+
+        if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
+            nextCooling = minimumAutomaticCoolingLevel
+            reasons.append("冷端低温保护")
+        } else if coldError >= 4.0 {
+            nextCooling += 6
+            reasons.append("冷端偏热，增加制冷")
+        } else if coldError >= 1.5 {
+            nextCooling += 3
+            reasons.append("冷端偏热，微增制冷")
+        } else if coldError <= -4.0 {
+            nextCooling -= 6
+            reasons.append("冷端偏冷，降低制冷")
+        } else if coldError <= -1.5 {
+            nextCooling -= 3
+            reasons.append("冷端偏冷，微降制冷")
+        }
+
+        let hotError = Double(status.hotTemperature) - targets.hotCelsius
+        var nextFan = currentFan
+        if highTemperatureProtectionEnabled && status.hotTemperature >= 45 {
+            nextFan = maximumAutomaticFanRPM
+            reasons.append("热端高温保护")
+        } else if hotError >= 4.0 {
+            nextFan += 600
+            reasons.append("热端偏热，提高风扇")
+        } else if hotError >= 1.5 {
+            nextFan += 300
+            reasons.append("热端偏热，微增风扇")
+        } else if hotError <= -4.0 {
+            nextFan -= 600
+            reasons.append("热端低于目标，降低风扇")
+        } else if hotError <= -1.5 {
+            nextFan -= 300
+            reasons.append("热端低于目标，微降风扇")
+        }
+
+        nextCooling = min(max(nextCooling, minimumAutomaticCoolingLevel),
+                          maximumAutomaticCoolingLevel)
+        nextFan = min(max(nextFan, minimumAutomaticFanRPM), maximumAutomaticFanRPM)
+
+        guard nextCooling != currentCooling || nextFan != currentFan else { return nil }
+        return B8XAutomaticSettings(
+            fanRPM: nextFan,
+            coolingLevel: nextCooling,
+            reason: reasons.isEmpty ? "温度维持区间" : reasons.joined(separator: "；")
+        )
     }
 }
 
