@@ -537,7 +537,6 @@ struct ContentView: View {
         let rpm = status.map { String($0.fanRPM) } ?? "无"
         let cold = status.map { String($0.coldLevel) } ?? "无"
         let history = bluetooth.rawFrameHistory.isEmpty ? "无" : bluetooth.rawFrameHistory.joined(separator: "\n")
-        let actionMarkers = bluetooth.physicalActionMarkers.isEmpty ? "无" : bluetooth.physicalActionMarkers.reversed().joined(separator: "\n")
         let lines = [
             "B8X OC Extreme 诊断日志",
             "导出时间：\(Date().formatted(date: .numeric, time: .standard))",
@@ -560,14 +559,15 @@ struct ContentView: View {
             "制冷原始值：\(cold)",
             "帧差异：\(bluetooth.statusFrameDeltaSummary)",
             "",
-            "【实体按键动作标记】",
-            actionMarkers,
-            "",
             "【最近状态帧】",
             history,
             "",
             "【GATT 服务与特征值】",
             bluetooth.gattInventory,
+            "",
+            "【双温度恒温】",
+            "运行状态：\(bluetooth.isDualTemperatureControlEnabled ? "运行中" : "已停止")",
+            bluetooth.dualTemperatureControlText,
             "",
             "【温度保护】",
             bluetooth.thermalProtectionText
