@@ -38,6 +38,8 @@ struct B8XStatus: Equatable {
     }
 }
 
+enum B8XThermalTargetMode: String, CaseIterable { case cooling, heating }
+
 struct B8XDualTemperatureTargets: Equatable {
     let coldCelsius: Double
     let hotCelsius: Double
@@ -66,6 +68,7 @@ enum B8XDualTemperatureController {
     static func nextSettings(
         from status: B8XStatus,
         targets: B8XDualTemperatureTargets,
+        targetMode: B8XThermalTargetMode = .cooling,
         lowTemperatureProtectionEnabled: Bool = true,
         highTemperatureProtectionEnabled: Bool = true
     ) -> B8XAutomaticSettings? {
@@ -92,22 +95,22 @@ enum B8XDualTemperatureController {
         if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
             coolingDelta = minimumAutomaticCoolingLevel - currentCooling
             reasons.append("冷端低温保护")
-        } else if coldError >= 6.0 {
+        } else if targetMode == .cooling && coldError >= 6.0 {
             coolingDelta = 6
             reasons.append("冷端明显偏热，增加制冷")
-        } else if coldError >= 3.0 {
+        } else if targetMode == .cooling && coldError >= 3.0 {
             coolingDelta = 4
             reasons.append("冷端偏热，增加制冷")
-        } else if coldError >= 1.5 {
+        } else if targetMode == .cooling && coldError >= 1.5 {
             coolingDelta = 2
             reasons.append("冷端轻微偏热，微增制冷")
-        } else if coldError <= -6.0 {
+        } else if targetMode == .cooling && coldError <= -6.0 {
             coolingDelta = -6
             reasons.append("冷端明显偏冷，降低制冷")
-        } else if coldError <= -3.0 {
+        } else if targetMode == .cooling && coldError <= -3.0 {
             coolingDelta = -4
             reasons.append("冷端偏冷，降低制冷")
-        } else if coldError <= -1.5 {
+        } else if targetMode == .cooling && coldError <= -1.5 {
             coolingDelta = -2
             reasons.append("冷端轻微偏冷，微降制冷")
         }
@@ -117,22 +120,22 @@ enum B8XDualTemperatureController {
         if highTemperatureProtectionEnabled && status.hotTemperature >= 45 {
             fanDelta = maximumAutomaticFanRPM - currentFan
             reasons.append("热端高温保护")
-        } else if hotError >= 6.0 {
+        } else if targetMode == .heating && hotError >= 6.0 {
             fanDelta = 600
             reasons.append("热端明显偏热，提高风扇")
-        } else if hotError >= 3.0 {
+        } else if targetMode == .heating && hotError >= 3.0 {
             fanDelta = 400
             reasons.append("热端偏热，提高风扇")
-        } else if hotError >= 1.5 {
+        } else if targetMode == .heating && hotError >= 1.5 {
             fanDelta = 200
             reasons.append("热端轻微偏热，微增风扇")
-        } else if hotError <= -6.0 {
+        } else if targetMode == .heating && hotError <= -6.0 {
             fanDelta = -600
             reasons.append("热端明显低于目标，降低风扇")
-        } else if hotError <= -3.0 {
+        } else if targetMode == .heating && hotError <= -3.0 {
             fanDelta = -400
             reasons.append("热端低于目标，降低风扇")
-        } else if hotError <= -1.5 {
+        } else if targetMode == .heating && hotError <= -1.5 {
             fanDelta = -200
             reasons.append("热端轻微低于目标，微降风扇")
         }

@@ -56,6 +56,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var isDualTemperatureControlEnabled = false
     @Published private(set) var dualTemperatureControlText = "尚未启动双温度恒温"
     private var dualTemperatureTargets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+    private var dualTemperatureTargetMode: B8XThermalTargetMode = .cooling
     private var dualTemperaturePollingWorkItem: DispatchWorkItem?
     private var lastDualTemperatureAdjustment = Date.distantPast
     private var dualTemperatureStartedAt: Date?
@@ -142,7 +143,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     func setCold(_ value: Int) { send(.cold(value)) }
     func applySettings(wind: Int, cold: Int) { send(.settings(wind: wind, cold: cold)) }
 
-    func startDualTemperatureControl(coldTarget: Double, hotTarget: Double) {
+    func startDualTemperatureControl(coldTarget: Double, hotTarget: Double, targetMode: B8XThermalTargetMode) {
         guard notificationReady else {
             dualTemperatureControlText = "请先连接 B8X 并完成状态通知订阅"
             return
@@ -162,13 +163,13 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             coldCelsius: coldTarget,
             hotCelsius: hotTarget
         )
+        dualTemperatureTargetMode = targetMode
         lastDualTemperatureAdjustment = .distantPast
         dualTemperatureStartedAt = Date()
         isDualTemperatureControlEnabled = true
-        dualTemperatureControlText = String(
-            format: "双温度恒温已启动：冷端 %.1f°C · 热端 %.0f°C",
-            coldTarget, hotTarget
-        )
+        dualTemperatureControlText = targetMode == .cooling
+            ? String(format: "制冷模式已启动：冷端目标 %.1f°C", coldTarget)
+            : String(format: "热端管理模式已启动：目标 %.0f°C（通过风扇散热，不具备主动加热）", hotTarget)
         refreshStatus()
         scheduleDualTemperaturePolling()
     }
@@ -224,6 +225,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         guard let next = B8XDualTemperatureController.nextSettings(
             from: current,
             targets: dualTemperatureTargets,
+            targetMode: dualTemperatureTargetMode,
             lowTemperatureProtectionEnabled: lowTemperatureProtectionEnabled,
             highTemperatureProtectionEnabled: highTemperatureProtectionEnabled
         ) else {

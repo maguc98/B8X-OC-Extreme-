@@ -4,6 +4,8 @@ struct ThermostatView: View {
     @ObservedObject var bluetooth: B8XBluetoothManager
     @AppStorage("B8X.dualTemperature.coldTarget") private var coldTarget = 15.0
     @AppStorage("B8X.dualTemperature.hotTarget") private var hotTarget = 40.0
+    @AppStorage("B8X.thermalTargetMode") private var targetModeRaw = "cooling"
+    private var targetMode: B8XThermalTargetMode { B8XThermalTargetMode(rawValue: targetModeRaw) ?? .cooling }
 
     private var connected: Bool {
         bluetooth.connectedName != nil && bluetooth.status != nil
@@ -12,6 +14,7 @@ struct ThermostatView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             header
+            modeSelectorCard
             temperatureTargetsCard
             liveStatusCard
             controlCard
@@ -34,6 +37,37 @@ struct ThermostatView: View {
                 .foregroundStyle(ThermostatPalette.muted)
         }
         .padding(.bottom, 1)
+    }
+
+    private var modeSelectorCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("控制模式", note: "SELECT ONE TARGET")
+            HStack(spacing: 9) {
+                modeButton("制冷", detail: "仅调节制冷档位", mode: .cooling, tint: ThermostatPalette.blueInk, wash: ThermostatPalette.sky)
+                modeButton("制热", detail: "仅管理散热风扇", mode: .heating, tint: ThermostatPalette.coral, wash: ThermostatPalette.peach)
+            }
+            Text("运行期间锁定模式，停止后可切换。制热模式仅通过风扇管理热端温度，B8X 不具备已验证的主动加热能力。")
+                .font(.system(size: 8, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(15)
+        .background(.white, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(ThermostatPalette.line, lineWidth: 1) }
+    }
+
+    private func modeButton(_ title: String, detail: String, mode: B8XThermalTargetMode, tint: Color, wash: Color) -> some View {
+        let selected = targetMode == mode
+        return Button { if !bluetooth.isDualTemperatureControlEnabled { targetModeRaw = mode.rawValue } } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.system(size: 13, weight: .bold))
+                Text(detail).font(.system(size: 8, weight: .medium))
+            }
+            .foregroundStyle(selected ? tint : ThermostatPalette.muted)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+            .background(selected ? wash : ThermostatPalette.neutral, in: RoundedRectangle(cornerRadius: 13))
+            .overlay { RoundedRectangle(cornerRadius: 13).stroke(selected ? tint.opacity(0.5) : ThermostatPalette.line, lineWidth: 1) }
+        }
+        .buttonStyle(.plain).disabled(bluetooth.isDualTemperatureControlEnabled)
     }
 
     private var temperatureTargetsCard: some View {
@@ -60,7 +94,7 @@ struct ThermostatView: View {
                 }
                 Slider(value: $coldTarget, in: 10...25, step: 0.5)
                     .tint(ThermostatPalette.blueInk)
-                    .disabled(bluetooth.isDualTemperatureControlEnabled)
+                    .disabled(bluetooth.isDualTemperatureControlEnabled || targetMode != .cooling)
                 HStack {
                     Text("10°C")
                     Spacer()
@@ -92,7 +126,7 @@ struct ThermostatView: View {
                 }
                 Slider(value: $hotTarget, in: 30...42, step: 1)
                     .tint(ThermostatPalette.coral)
-                    .disabled(bluetooth.isDualTemperatureControlEnabled)
+                    .disabled(bluetooth.isDualTemperatureControlEnabled || targetMode != .heating)
                 HStack {
                     Text("30°C")
                     Spacer()
@@ -174,12 +208,12 @@ struct ThermostatView: View {
                 if bluetooth.isDualTemperatureControlEnabled {
                     bluetooth.stopDualTemperatureControl()
                 } else {
-                    bluetooth.startDualTemperatureControl(coldTarget: coldTarget, hotTarget: hotTarget)
+                    bluetooth.startDualTemperatureControl(coldTarget: coldTarget, hotTarget: hotTarget, targetMode: targetMode)
                 }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: bluetooth.isDualTemperatureControlEnabled ? "pause.fill" : "play.fill")
-                    Text(bluetooth.isDualTemperatureControlEnabled ? "停止恒温控制" : "启动双温度恒温")
+                    Text(bluetooth.isDualTemperatureControlEnabled ? "停止恒温控制" : (targetMode == .cooling ? "启动制冷管理" : "启动热端管理"))
                     Spacer()
                     Image(systemName: "arrow.right")
                 }

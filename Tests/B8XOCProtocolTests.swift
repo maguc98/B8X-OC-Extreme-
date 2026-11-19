@@ -164,13 +164,19 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertFalse(expectation.matches(mismatching))
     }
 
-    func testDualTemperatureControllerRaisesCoolingAndFanForHotSide() throws {
-        let status = try B8XStatus.decode(
-            sampleFrame(coldInteger: 24, coldFraction: 5, hot: 42, windHundreds: 42, coldLevel: 110)
-        )
+    func testCoolingModeOnlyAdjustsCoolingOutput() throws {
+        let status = try B8XStatus.decode(sampleFrame(coldInteger: 24, coldFraction: 5, hot: 42, windHundreds: 42, coldLevel: 110))
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
-        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets, targetMode: .cooling))
         XCTAssertEqual(next.coolingLevel, 116)
+        XCTAssertEqual(next.fanRPM, 4200)
+    }
+
+    func testHeatingModeOnlyAdjustsFanOutput() throws {
+        let status = try B8XStatus.decode(sampleFrame(coldInteger: 24, coldFraction: 5, hot: 42, windHundreds: 42, coldLevel: 110))
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets, targetMode: .heating))
+        XCTAssertEqual(next.coolingLevel, 110)
         XCTAssertEqual(next.fanRPM, 4400)
     }
 
