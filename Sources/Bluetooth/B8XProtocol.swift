@@ -89,14 +89,15 @@ enum B8XDualTemperatureController {
         var fanDelta = 0
         var reasons: [String] = []
 
-        if targetMode == .cooling {
+        if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
+            // Low-temperature safety is independent of the selected operating mode.
+            coolingDelta = minimumAutomaticCoolingLevel - currentCooling
+            fanDelta = minimumAutomaticFanRPM - currentFan
+            reasons.append("冷端低温保护：制冷与风扇降至下限")
+        } else if targetMode == .cooling {
             // The cold-side setpoint governs BOTH outputs:
             // warmer required -> reduce cooling and fan; colder required -> increase both.
-            if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
-                coolingDelta = minimumAutomaticCoolingLevel - currentCooling
-                fanDelta = minimumAutomaticFanRPM - currentFan
-                reasons.append("冷端低温保护：制冷与风扇降至下限")
-            } else if coldError >= 6.0 {
+            if coldError >= 6.0 {
                 coolingDelta = 12
                 fanDelta = 600
                 reasons.append("冷端明显偏热：提高制冷与风扇")
