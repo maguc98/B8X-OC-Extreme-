@@ -118,7 +118,8 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertNoThrow(try B8XControl.wind(4150).packet(using: status))
         XCTAssertNoThrow(try B8XControl.wind(6000).packet(using: status))
         XCTAssertThrowsError(try B8XControl.wind(6001).packet(using: status))
-        XCTAssertNoThrow(try B8XControl.cold(1).packet(using: status))
+        XCTAssertNoThrow(try B8XControl.cold(0).packet(using: status))
+        XCTAssertEqual(try B8XControl.cold(0).packet(using: status), Data([0x20, 1, 0, 42, 0, 0, 92, 40, 0]))
         XCTAssertNoThrow(try B8XControl.cold(255).packet(using: status))
         XCTAssertThrowsError(try B8XControl.cold(256).packet(using: status))
     }
@@ -204,7 +205,7 @@ final class B8XOCProtocolTests: XCTestCase {
             targetMode: .heating,
             lowTemperatureProtectionEnabled: true
         ))
-        XCTAssertEqual(next.coolingLevel, 1)
+        XCTAssertEqual(next.coolingLevel, 0)
         XCTAssertEqual(next.fanRPM, 1000)
         XCTAssertTrue(next.reason.contains("冷端低温保护"))
     }
@@ -215,7 +216,7 @@ final class B8XOCProtocolTests: XCTestCase {
         )
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
-        XCTAssertEqual(next.coolingLevel, 1)
+        XCTAssertEqual(next.coolingLevel, 0)
         XCTAssertEqual(next.fanRPM, 6000)
         XCTAssertTrue(next.reason.contains("冷端低温保护"))
         XCTAssertTrue(next.reason.contains("热端高温保护"))
