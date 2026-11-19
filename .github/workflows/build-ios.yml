@@ -81,3 +81,5 @@ jobs:
           path: build/B8X-OC-Extreme-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
+
+# Rebuild after AppIcon PNG repair
