@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ThermostatView: View {
     @ObservedObject var bluetooth: B8XBluetoothManager
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("B8X.dualTemperature.coldTarget") private var coldTarget = 15.0
     @AppStorage("B8X.dualTemperature.hotTarget") private var hotTarget = 40.0
 
@@ -16,6 +17,11 @@ struct ThermostatView: View {
             liveStatusCard
             controlCard
             safetyNote
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active && bluetooth.isDualTemperatureControlEnabled {
+                bluetooth.stopDualTemperatureControl(message: "App 已离开前台，恒温自动调节已暂停。")
+            }
         }
     }
 
@@ -189,7 +195,7 @@ struct ThermostatView: View {
                 )
             }
             .buttonStyle(.plain)
-            .disabled(!bluetooth.isDualTemperatureControlEnabled && !connected)
+            .disabled(!bluetooth.isDualTemperatureControlEnabled && (!connected || bluetooth.isBusy))
 
             Text(bluetooth.dualTemperatureControlText)
                 .font(.system(size: 9, weight: .semibold))
