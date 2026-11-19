@@ -171,7 +171,7 @@ final class B8XOCProtocolTests: XCTestCase {
         let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
         XCTAssertEqual(next.coolingLevel, 116)
-        XCTAssertEqual(next.fanRPM, 4500)
+        XCTAssertEqual(next.fanRPM, 4400)
     }
 
     func testDualTemperatureControllerHoldsInsideDeadband() throws {
@@ -199,9 +199,35 @@ final class B8XOCProtocolTests: XCTestCase {
             sampleFrame(coldInteger: 24, coldFraction: 5, hot: 38, windHundreds: 42, coldLevel: 255)
         )
         let targets = B8XDualTemperatureTargets(coldCelsius: 24.5, hotCelsius: 38)
+        XCTAssertNil(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+    }
+
+    func testDualTemperatureControllerUsesSmallerStepsNearTarget() throws {
+        let status = try B8XStatus.decode(
+            sampleFrame(coldInteger: 17, coldFraction: 0, hot: 42, windHundreds: 42, coldLevel: 110)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
         let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
-        XCTAssertEqual(next.coolingLevel, 110)
-        XCTAssertEqual(next.fanRPM, 4200)
+        XCTAssertEqual(next.coolingLevel, 112)
+        XCTAssertEqual(next.fanRPM, 4400)
+    }
+
+    func testDualTemperatureControllerRejectsImplausibleTemperatureTelemetry() throws {
+        let coldInvalid = try B8XStatus.decode(sampleFrame(coldInteger: 80, coldFraction: 0))
+        let hotInvalid = try B8XStatus.decode(sampleFrame(hot: 110))
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        XCTAssertNil(B8XDualTemperatureController.nextSettings(from: coldInvalid, targets: targets))
+        XCTAssertNil(B8XDualTemperatureController.nextSettings(from: hotInvalid, targets: targets))
+    }
+
+    func testDualTemperatureControllerDoesNotOvershootOutputLimits() throws {
+        let status = try B8XStatus.decode(
+            sampleFrame(coldInteger: 24, coldFraction: 0, hot: 42, windHundreds: 60, coldLevel: 174)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
+        XCTAssertEqual(next.coolingLevel, 175)
+        XCTAssertEqual(next.fanRPM, 6000)
     }
 
     func testDualTemperatureControllerRejectsOutOfRangeTargets() throws {
