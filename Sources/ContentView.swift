@@ -271,7 +271,7 @@ struct ContentView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 1) {
-                                Text(Int(fanTarget.rounded()).formatted()).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.blueInk)
+                                Text(Int(fanTarget.rounded()).formatted()).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: Int(fanTarget.rounded())).foregroundStyle(Studio.blueInk)
                                 Text("RPM · 目标").font(.system(size: 8, weight: .heavy)).tracking(0.6).foregroundStyle(Studio.muted)
                             }
                         }
@@ -303,7 +303,7 @@ struct ContentView: View {
                                 section("制冷档位", note: "COOLING LEVEL")
                                 HStack(spacing: 5) {
                                     Circle().fill(Studio.green).frame(width: 6, height: 6)
-                                    Text("设备实时回报：\(s.coldLevel)")
+                                    Text("设备实时回报：\(s.coldLevel)").contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: s.coldLevel)
                                         .font(.system(size: 10, weight: .bold, design: .rounded))
                                         .monospacedDigit()
                                         .foregroundStyle(Studio.greenInk)
@@ -314,7 +314,7 @@ struct ContentView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(Int(coldTarget.rounded()))").font(.system(size: 24, weight: .heavy, design: .rounded)).foregroundStyle(Studio.greenInk)
+                                Text("\(Int(coldTarget.rounded()))").font(.system(size: 24, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: Int(coldTarget.rounded())).foregroundStyle(Studio.greenInk)
                                 Text("设定目标").font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
                             }
                         }
@@ -673,7 +673,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 8, weight: .medium)).foregroundStyle(Studio.muted)
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value).font(.system(size: 13, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(tint)
+                    Text(value).font(.system(size: 13, weight: .bold, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: value).foregroundStyle(tint)
                     Text(unit).font(.system(size: 7, weight: .bold)).foregroundStyle(Studio.muted)
                 }
             }
@@ -691,7 +691,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 8, weight: .medium)).foregroundStyle(Studio.muted)
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value).font(.system(size: 15, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.ink)
+                    Text(value).font(.system(size: 15, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: value).foregroundStyle(Studio.ink)
                     Text(unit).font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
                 }
             }
@@ -711,7 +711,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 11) {
                 Label(title, systemImage: icon).font(.system(size: 9, weight: .semibold)).foregroundStyle(ink)
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value).font(.system(size: 28, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.ink).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(value).font(.system(size: 28, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: value).foregroundStyle(Studio.ink).lineLimit(1).minimumScaleFactor(0.7)
                     Text(unit).font(.system(size: 9, weight: .bold)).foregroundStyle(Studio.muted)
                 }
                 Capsule().fill(wash).frame(height: 5)
@@ -727,7 +727,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(value).font(.system(size: 16, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.ink).lineLimit(1).minimumScaleFactor(0.65)
+                        Text(value).font(.system(size: 16, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: value).foregroundStyle(Studio.ink).lineLimit(1).minimumScaleFactor(0.65)
                         Text(unit).font(.system(size: 7, weight: .heavy)).foregroundStyle(Studio.muted)
                     }
                 }
@@ -822,14 +822,14 @@ private struct SpeedDial: View {
             Circle().trim(from: 0, to: 280 / 360).stroke(Studio.track, style: StrokeStyle(lineWidth: 12, lineCap: .round)).rotationEffect(.degrees(130))
             Circle().trim(from: 0, to: 280 / 360 * progress)
                 .stroke(AngularGradient(colors: [Studio.blue, Studio.violet, Studio.pink, Studio.blue], center: .center), style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                .rotationEffect(.degrees(130)).shadow(color: Studio.blue.opacity(0.25), radius: 6)
+                .rotationEffect(.degrees(130)).animation(.spring(response: 0.62, dampingFraction: 0.76), value: progress).shadow(color: Studio.blue.opacity(0.25), radius: 6)
             VStack(spacing: 4) {
                 Text("ACTUAL SPEED").font(.system(size: 8, weight: .heavy, design: .rounded)).tracking(1.4).foregroundStyle(Studio.muted)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(actual > 0 ? actual.formatted() : "—").font(.system(size: 38, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Studio.ink)
+                    Text(actual > 0 ? actual.formatted() : "—").font(.system(size: 38, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.52, dampingFraction: 0.70), value: actual).foregroundStyle(Studio.ink)
                     Text("RPM").font(.system(size: 9, weight: .heavy)).foregroundStyle(Studio.blueInk)
                 }
-                Text("目标 \(target.formatted()) RPM").font(.system(size: 10, weight: .semibold)).foregroundStyle(Studio.muted).padding(.top, 2)
+                Text("目标 \(target.formatted()) RPM").font(.system(size: 10, weight: .semibold)).contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: target).foregroundStyle(Studio.muted).padding(.top, 2)
                 Text("设定上限 6,000 RPM").font(.system(size: 8, weight: .medium)).foregroundStyle(Studio.muted)
             }
         }.frame(width: 210, height: 210)
