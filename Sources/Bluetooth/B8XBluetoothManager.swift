@@ -10,7 +10,7 @@ struct DiscoveredDevice: Identifiable {
 }
 
 final class B8XBluetoothManager: NSObject, ObservableObject {
-    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback, lightingCaptureReadback, lightingProtocolProbe }
+    private enum BLEWritePurpose { case statusRequest, controlCommand, confirmationReadback }
     private let serviceID = CBUUID(string: "FFE0")
     private let writeID = CBUUID(string: "FFE1")
     private let notifyID = CBUUID(string: "FFE4")
@@ -35,10 +35,6 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var manufacturerName: String?
     @Published private(set) var statusFrameDeltaSummary = "等待第二条状态帧进行对比"
     @Published private(set) var physicalActionMarkers: [String] = []
-    @Published private(set) var isCapturingLightingAction = false
-    @Published private(set) var lightingCaptureText = "等待实体按键双击抓包"
-    @Published private(set) var lightingProtocolProbeText = "尚未执行灯效协议只读探测"
-    @Published private(set) var lightingProtocolProbeRawFrame: String?
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -58,14 +54,12 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var highTemperatureProtectionEnabled = true
     private var lowProtectionLatched = false
     private var highProtectionLatched = false
+    @Published private(set) var isDualTemperatureControlEnabled = false
+    @Published private(set) var dualTemperatureControlText = "尚未启动双温度恒温"
+    private var dualTemperatureTargets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+    private var dualTemperaturePollingWorkItem: DispatchWorkItem?
+    private var lastDualTemperatureAdjustment = Date.distantPast
     private var lastCapturedRawFrame: [UInt8]?
-    private var lightingCaptureID: UUID?
-    private var lightingCaptureWorkItems: [DispatchWorkItem] = []
-    private var lightingCaptureFrameCount = 0
-    private var awaitingLightingProtocolProbeResponse = false
-    private var lightingProtocolProbeEffectID: UInt8?
-    private var lightingProtocolProbeResponseCount = 0
-    private var lightingProtocolProbeTimeout: DispatchWorkItem?
 
     override init() {
         super.init()
@@ -130,167 +124,15 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         detailText = "正在请求设备状态…"
     }
 
-    private func cancelLightingActionCapture(statusText: String) {
-        lightingCaptureWorkItems.forEach { $0.cancel() }
-        lightingCaptureWorkItems.removeAll()
-        lightingCaptureID = nil
-        isCapturingLightingAction = false
-        lightingCaptureText = statusText
-    }
-
     func clearRawFrameHistory() {
-        cancelLightingActionCapture(statusText: "样本已清空，等待新的状态帧")
         rawFrameHistory.removeAll()
-        physicalActionMarkers.removeAll()
         lastCapturedRawFrame = nil
         statusFrameDeltaSummary = "样本已清空，等待新的状态帧"
     }
 
-    /// Mark the user's physical double-press and collect read-only status frames
-    /// for five seconds. The only BLE payload sent by this capture is the
-    /// documented status query (0x13); no unknown lighting command is written.
-    func markPhysicalDoublePress() {
-        guard notificationReady else {
-            lightingCaptureText = "请先连接 B8X 并完成状态通知订阅"
-            return
-        }
-
-        cancelLightingActionCapture(statusText: "准备新的实体按键抓包")
-        let captureID = UUID()
-        lightingCaptureID = captureID
-        lightingCaptureFrameCount = 0
-        isCapturingLightingAction = true
-
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let timestamp = formatter.string(from: Date())
-        let latestFrame = rawFrameHistory.first ?? "尚无状态帧"
-        let marker = "DOUBLE_PRESS \(timestamp) | baselineFrames=\(rawFrameHistory.count) | latest=\(latestFrame)"
-        physicalActionMarkers.insert(marker, at: 0)
-        if physicalActionMarkers.count > 20 { physicalActionMarkers.removeLast() }
-
-        lightingCaptureText = "抓包中：现在请立即双击 B8X 实体按键；5 秒内自动读取 6 次状态。"
-
-        let readbackDelays: [TimeInterval] = [0.0, 0.65, 1.4, 2.3, 3.5, 5.0]
-        for (index, delay) in readbackDelays.enumerated() {
-            let work = DispatchWorkItem { [weak self] in
-                guard let self, self.lightingCaptureID == captureID else { return }
-                guard self.notificationReady else {
-                    self.cancelLightingActionCapture(statusText: "抓包中断：设备状态通知已断开")
-                    return
-                }
-                guard self.write(Data([0x13]), purpose: .lightingCaptureReadback) else {
-                    self.lightingCaptureText = "第 \(index + 1) 次状态读取未能写入，请检查连接。"
-                    return
-                }
-                self.lightingCaptureText = "抓包中：已发出第 \(index + 1)/6 次状态读取请求…"
-            }
-            lightingCaptureWorkItems.append(work)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
-        }
-
-        let finish = DispatchWorkItem { [weak self] in
-            guard let self, self.lightingCaptureID == captureID else { return }
-            let frames = self.lightingCaptureFrameCount
-            self.lightingCaptureWorkItems.removeAll()
-            self.lightingCaptureID = nil
-            self.isCapturingLightingAction = false
-            self.lightingCaptureText = "抓包完成：收到 \(frames) 条状态帧。请导出抓包并重复 3 次进行对比。"
-        }
-        lightingCaptureWorkItems.append(finish)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.8, execute: finish)
-    }
-
     var captureExportText: String {
-        let markers = physicalActionMarkers.isEmpty ? "无动作标记" : physicalActionMarkers.reversed().joined(separator: "\n")
         let frames = rawFrameHistory.reversed().joined(separator: "\n")
-        let probeFrame = lightingProtocolProbeRawFrame ?? "尚未收到 0x51 回包"
-        return "【灯效协议只读探测】\n\(lightingProtocolProbeText)\n\(probeFrame)\n\n【实体按键动作标记】\n\(markers)\n\n【状态帧（新→旧）】\n\(frames)"
-    }
-
-    /// Sends only the candidate read-only 0x51 0x00 configuration query.
-    /// This is manual (never automatic) because its B8X support is unverified.
-    /// No 0x50 LED write is sent by this diagnostic.
-    func probeLightingProtocol() {
-        guard notificationReady else {
-            lightingProtocolProbeText = "请先连接 B8X 并完成通知订阅"
-            return
-        }
-        guard !isBusy, !awaitingLightingProtocolProbeResponse else {
-            lightingProtocolProbeText = "当前有其他蓝牙操作，请稍后再试"
-            return
-        }
-        guard let current = status else {
-            lightingProtocolProbeText = "请先读取设备状态，再查询当前灯效配置"
-            refreshStatus()
-            return
-        }
-
-        let effectID = current.raw[15]
-        guard let request = B8XLightingProtocolProbe.readConfiguration(forEffect: effectID) else {
-            lightingProtocolProbeText = String(
-                format: "当前 byte[15]=0x%02X 不在候选灯效编号中；未发送任何探测命令。",
-                effectID
-            )
-            return
-        }
-
-        lightingProtocolProbeTimeout?.cancel()
-        lightingProtocolProbeTimeout = nil
-        awaitingLightingProtocolProbeResponse = true
-        lightingProtocolProbeEffectID = effectID
-        lightingProtocolProbeResponseCount = 0
-        lightingProtocolProbeRawFrame = nil
-        lightingProtocolProbeText = String(
-            format: "正在查询当前候选灯效 0x%02X（命令 51 %02X），等待回包…",
-            effectID, effectID
-        )
-        guard write(request, purpose: .lightingProtocolProbe) else {
-            awaitingLightingProtocolProbeResponse = false
-            lightingProtocolProbeEffectID = nil
-            lightingProtocolProbeText = "查询未能写入，请检查连接"
-            return
-        }
-
-        let timeout = DispatchWorkItem { [weak self] in
-            guard let self, self.awaitingLightingProtocolProbeResponse else { return }
-            self.awaitingLightingProtocolProbeResponse = false
-            self.lightingProtocolProbeTimeout = nil
-            self.lightingProtocolProbeEffectID = nil
-            if self.lightingProtocolProbeResponseCount > 0 {
-                self.lightingProtocolProbeText = "收到 \(self.lightingProtocolProbeResponseCount) 条 0x51 候选回包。请导出原始数据；这仍不能证明 B8X 的 0x50 写入格式。"
-            } else {
-                self.lightingProtocolProbeText = "3 秒内未收到匹配的 0x51 回包；固件可能不支持此查询，或回包格式不同。未发送任何灯效写入。"
-            }
-        }
-        lightingProtocolProbeTimeout = timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timeout)
-    }
-
-    private func receiveLightingProtocolProbeResponse(_ data: Data) {
-        guard awaitingLightingProtocolProbeResponse,
-              data.first == B8XLightingProtocolProbe.responseCommand,
-              data.count >= 2,
-              data[1] == lightingProtocolProbeEffectID else { return }
-
-        let hex = data.map { String(format: "%02X", $0) }.joined(separator: " ")
-        if lightingProtocolProbeRawFrame == nil {
-            lightingProtocolProbeRawFrame = hex
-        } else {
-            lightingProtocolProbeRawFrame! += "\n" + hex
-        }
-        lightingProtocolProbeResponseCount += 1
-        lightingProtocolProbeText = "已收到第 \(lightingProtocolProbeResponseCount) 条匹配的 0x51 候选回包，继续收集可能的分包…"
-    }
-
-    private func resetLightingProtocolProbe(_ message: String) {
-        lightingProtocolProbeTimeout?.cancel()
-        lightingProtocolProbeTimeout = nil
-        awaitingLightingProtocolProbeResponse = false
-        lightingProtocolProbeEffectID = nil
-        lightingProtocolProbeResponseCount = 0
-        lightingProtocolProbeText = message
-        lightingProtocolProbeRawFrame = nil
+        return "【B8X 原始状态帧（新→旧）】\n\(frames)"
     }
 
     func setLight(_ enabled: Bool) { send(.light(enabled)) }
@@ -298,6 +140,89 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     func setWind(_ value: Int) { send(.wind(value)) }
     func setCold(_ value: Int) { send(.cold(value)) }
     func applySettings(wind: Int, cold: Int) { send(.settings(wind: wind, cold: cold)) }
+
+    func startDualTemperatureControl(coldTarget: Double, hotTarget: Double) {
+        guard notificationReady else {
+            dualTemperatureControlText = "请先连接 B8X 并完成状态通知订阅"
+            return
+        }
+        guard status != nil else {
+            dualTemperatureControlText = "正在等待设备温度数据，请刷新状态后再启动"
+            refreshStatus()
+            return
+        }
+        guard B8XDualTemperatureController.coldTargetRange.contains(coldTarget),
+              B8XDualTemperatureController.hotTargetRange.contains(hotTarget) else {
+            dualTemperatureControlText = "目标温度超出允许范围"
+            return
+        }
+
+        dualTemperatureTargets = B8XDualTemperatureTargets(
+            coldCelsius: coldTarget,
+            hotCelsius: hotTarget
+        )
+        lastDualTemperatureAdjustment = .distantPast
+        isDualTemperatureControlEnabled = true
+        dualTemperatureControlText = String(
+            format: "双温度恒温已启动：冷端 %.1f°C · 热端 %.0f°C",
+            coldTarget, hotTarget
+        )
+        refreshStatus()
+        scheduleDualTemperaturePolling()
+    }
+
+    func stopDualTemperatureControl(message: String = "恒温控制已停止；设备保留最后一次风扇和制冷设定。") {
+        isDualTemperatureControlEnabled = false
+        dualTemperaturePollingWorkItem?.cancel()
+        dualTemperaturePollingWorkItem = nil
+        dualTemperatureControlText = message
+    }
+
+    private func scheduleDualTemperaturePolling() {
+        dualTemperaturePollingWorkItem?.cancel()
+        guard isDualTemperatureControlEnabled else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isDualTemperatureControlEnabled else { return }
+            if self.notificationReady,
+               !self.isBusy,
+               self.requestedControl == nil,
+               self.awaitingConfirmation == nil,
+               self.pendingWritePurposes.isEmpty {
+                _ = self.write(Data([0x13]), purpose: .statusRequest)
+            }
+            self.scheduleDualTemperaturePolling()
+        }
+        dualTemperaturePollingWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: work)
+    }
+
+    private func evaluateDualTemperatureControl(using current: B8XStatus) {
+        guard isDualTemperatureControlEnabled,
+              notificationReady,
+              !isBusy,
+              requestedControl == nil,
+              awaitingConfirmation == nil else { return }
+
+        guard Date().timeIntervalSince(lastDualTemperatureAdjustment) >= 8 else { return }
+
+        guard let next = B8XDualTemperatureController.nextSettings(
+            from: current,
+            targets: dualTemperatureTargets,
+            lowTemperatureProtectionEnabled: lowTemperatureProtectionEnabled,
+            highTemperatureProtectionEnabled: highTemperatureProtectionEnabled
+        ) else {
+            dualTemperatureControlText = String(
+                format: "雙溫度保持中 · 冷端 %.1f/%.1f°C · 熱端 %d/%.0f°C",
+                current.coldTemperature, dualTemperatureTargets.coldCelsius,
+                current.hotTemperature, dualTemperatureTargets.hotCelsius
+            )
+            return
+        }
+
+        lastDualTemperatureAdjustment = Date()
+        dualTemperatureControlText = "\(next.reason) · 制冷 \(next.coolingLevel) · 风扇 \(next.fanRPM) RPM"
+        send(.settings(wind: next.fanRPM, cold: next.coolingLevel))
+    }
 
     func configureThermalProtection(lowEnabled: Bool, highEnabled: Bool) {
         lowTemperatureProtectionEnabled = lowEnabled
@@ -334,10 +259,6 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
 
     private func send(_ control: B8XControl) {
         guard notificationReady, !isBusy else { return }
-        guard !awaitingLightingProtocolProbeResponse else {
-            lastCommandText = "正在读取灯效配置，请稍后再调整设备参数。"
-            return
-        }
         guard let current = status else {
             lastCommandText = "请先读取设备状态"
             refreshStatus()
@@ -400,7 +321,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             self.operationTimeout = nil
             self.confirmationReadbackWorkItem?.cancel()
             self.confirmationReadbackWorkItem = nil
-            self.lastCommandText = "设备确认超时。请刷新状态核对实际值，不要连续重复发送。"
+            self.lastCommandText = "设备确认超时。已暂停恒温自动调节，请刷新状态核对实际值。"
+            self.stopDualTemperatureControl(message: "设备未确认最近一次调节，恒温已安全暂停。")
             self.refreshStatus()
         }
         operationTimeout = timeout
@@ -442,7 +364,6 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         let frameFormatter = ISO8601DateFormatter()
         frameFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         rawFrameHistory.insert("\(frameFormatter.string(from: Date()))  \(hex)", at: 0)
-        if lightingCaptureID != nil { lightingCaptureFrameCount += 1 }
         if rawFrameHistory.count > 64 {
             rawFrameHistory.removeLast(rawFrameHistory.count - 64)
         }
@@ -480,7 +401,11 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             lastCommandText = "设备已回报确认，控制成功"
         }
         detailText = "已接收并解析 B8X 状态帧"
-        evaluateThermalProtection(using: newStatus)
+        if isDualTemperatureControlEnabled {
+            evaluateDualTemperatureControl(using: newStatus)
+        } else {
+            evaluateThermalProtection(using: newStatus)
+        }
     }
 }
 
@@ -495,8 +420,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
             confirmationReadbackWorkItem?.cancel()
             confirmationReadbackWorkItem = nil
             pendingWritePurposes.removeAll()
-            cancelLightingActionCapture(statusText: "抓包已中断：蓝牙不可用")
-            resetLightingProtocolProbe("蓝牙不可用，灯效协议探测已重置")
+            stopDualTemperatureControl(message: "蓝牙不可用，双温度恒温已暂停。")
             isBusy = false
         }
         switch central.state {
@@ -549,7 +473,6 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         manufacturerName = nil
         gattInventory = "正在枚举设备公开的 GATT 服务…"
         clearRawFrameHistory()
-        resetLightingProtocolProbe("设备已连接；可手动执行候选只读查询")
         peripheral.delegate = self
         // Read-only discovery: enumerate services to identify standard
         // Device Information metadata and any advertised update service.
@@ -573,8 +496,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
-        resetLightingProtocolProbe("连接失败，灯效协议探测已重置")
-        cancelLightingActionCapture(statusText: "抓包已中断：连接失败")
+        stopDualTemperatureControl(message: "连接失败，双温度恒温已暂停。")
         stateText = "连接失败：\(error?.localizedDescription ?? "未知错误")"
         detailText = "连接失败，将自动重新搜索 B8X"
         scheduleAutomaticReconnect()
@@ -588,7 +510,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
-        resetLightingProtocolProbe("设备已断开，灯效协议探测已重置")
+        stopDualTemperatureControl(message: "设备已断开，双温度恒温已暂停。")
         requestedControl = nil
         awaitingConfirmation = nil
         operationTimeout?.cancel()
@@ -596,7 +518,6 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         confirmationReadbackWorkItem?.cancel()
         confirmationReadbackWorkItem = nil
         pendingWritePurposes.removeAll()
-        cancelLightingActionCapture(statusText: "抓包已中断：设备已断开")
         isBusy = false
         status = nil
         detailText = error.map { "连接断开：\($0.localizedDescription)" } ?? "设备已断开"
@@ -716,10 +637,6 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
         } else if characteristic.uuid == manufacturerNameID {
             manufacturerName = String(data: value, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         } else if characteristic.uuid == notifyID {
-            if value.first == B8XLightingProtocolProbe.responseCommand {
-                receiveLightingProtocolProbeResponse(value)
-                return
-            }
             do {
                 handleStatus(try B8XStatus.decode(value))
             } catch {
@@ -744,19 +661,12 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
                 confirmationReadbackWorkItem?.cancel()
                 confirmationReadbackWorkItem = nil
                 lastCommandText = "写入失败：\(error.localizedDescription)"
+                stopDualTemperatureControl(message: "蓝牙写入失败，恒温已安全暂停。")
             case .confirmationReadback:
                 detailText = "主动状态回读失败：\(error.localizedDescription)"
                 if awaitingConfirmation != nil { scheduleConfirmationReadback(after: 0.8) }
             case .statusRequest:
                 detailText = "状态请求写入失败：\(error.localizedDescription)"
-            case .lightingCaptureReadback:
-                lightingCaptureText = "自动状态读取写入失败：\(error.localizedDescription)"
-            case .lightingProtocolProbe:
-                awaitingLightingProtocolProbeResponse = false
-                lightingProtocolProbeEffectID = nil
-                lightingProtocolProbeTimeout?.cancel()
-                lightingProtocolProbeTimeout = nil
-                lightingProtocolProbeText = "只读探测写入失败：\(error.localizedDescription)"
             }
             return
         }
@@ -771,12 +681,8 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
             if awaitingConfirmation != nil, confirmationReadbackAttempt < 3 {
                 scheduleConfirmationReadback(after: 0.9)
             }
-        case .statusRequest, .lightingCaptureReadback:
+        case .statusRequest:
             break
-        case .lightingProtocolProbe:
-            if lightingProtocolProbeResponseCount == 0 {
-                lightingProtocolProbeText = "候选只读查询已写入，等待设备回包…"
-            }
         }
     }
 }
