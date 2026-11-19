@@ -27,7 +27,7 @@ struct ContentView: View {
                         case .controls: controls
                         case .devices: devices
                         case .diagnostics: diagnostics
-                        case .lighting: LightStudioView(bluetooth: bluetooth)
+                        case .thermostat: ThermostatView(bluetooth: bluetooth)
                         }
                     }
                     .id(tab)
@@ -143,7 +143,7 @@ struct ContentView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("调整散热表现").font(.system(size: 13, weight: .bold))
-                            Text("前往风扇、制冷与灯光控制").font(.system(size: 10, weight: .medium)).opacity(0.75)
+                            Text("前往风扇、制冷与双温度恒温").font(.system(size: 10, weight: .medium)).opacity(0.75)
                         }
                         Spacer()
                         Image(systemName: "arrow.up.right").font(.system(size: 13, weight: .bold))
@@ -435,7 +435,7 @@ struct ContentView: View {
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Studio.blueInk)
                         }
-                        .disabled(bluetooth.rawFrameHistory.isEmpty && bluetooth.physicalActionMarkers.isEmpty)
+                        .disabled(bluetooth.rawFrameHistory.isEmpty)
                     }
                     if let s = bluetooth.status {
                         Text(s.raw.map { String(format: "%02X", $0) }.joined(separator: " "))
@@ -447,15 +447,6 @@ struct ContentView: View {
                         diagnosticRow("风扇设定", "\(s.windLevel) RPM")
                         diagnosticRow("实际转速", "\(s.fanRPM) RPM")
                         diagnosticRow("制冷原始值", "\(s.coldLevel)")
-                        diagnosticRow(
-                            "灯效编号（候选）",
-                            String(format: "0x%02X · %@", s.raw[15],
-                                   s.candidateLightingEffectName ?? "未匹配")
-                        )
-                        Text("byte[15] 与已公开的飞智灯效编号相符，目前仅作只读观察，尚未验证按键对应关系。")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(Studio.muted)
-                            .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text("连接设备后，这里会显示原始数据帧。").font(.system(size: 10, weight: .medium)).foregroundStyle(Studio.muted)
                     }
@@ -470,43 +461,10 @@ struct ContentView: View {
                                 .foregroundStyle(Studio.muted)
                         }
                         .disabled(bluetooth.rawFrameHistory.isEmpty)
-                        Button { bluetooth.markPhysicalDoublePress() } label: { actionPill("标记并自动抓取", icon: "hand.tap") }
-                            .disabled(bluetooth.connectedName == nil || bluetooth.isCapturingLightingAction)
-                        Button { bluetooth.refreshStatus() } label: { actionPill("读取最新状态", icon: "arrow.clockwise") }
-                            .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
-                    }
-                    Text(bluetooth.lightingCaptureText)
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(bluetooth.isCapturingLightingAction ? Studio.coral : Studio.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack {
-                        Button { bluetooth.probeLightingProtocol() } label: {
-                            actionPill("只读查询当前灯效（51 + 编号）", icon: "magnifyingglass")
+                        Button { bluetooth.refreshStatus() } label: {
+                            actionPill("读取最新状态", icon: "arrow.clockwise")
                         }
                         .disabled(bluetooth.connectedName == nil || bluetooth.isBusy)
-                        Spacer(minLength: 0)
-                    }
-                    Text(bluetooth.lightingProtocolProbeText)
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(Studio.goldInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let probeFrame = bluetooth.lightingProtocolProbeRawFrame {
-                        Text("候选回包：\(probeFrame)")
-                            .font(.system(size: 8, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Studio.violetInk)
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if !bluetooth.physicalActionMarkers.isEmpty {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("实体按键动作标记（点击标记按钮后立即双击）")
-                                .font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
-                            ForEach(bluetooth.physicalActionMarkers.prefix(5), id: \.self) { marker in
-                                Text(marker).font(.system(size: 8, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(Studio.coral).textSelection(.enabled)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text("与上一帧的字节差异（索引从 0 开始）")
@@ -519,7 +477,7 @@ struct ContentView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if bluetooth.rawFrameHistory.isEmpty {
-                        Text("暂无历史帧。读取状态或切换散热器实体灯效后，可再次读取并导出前后数据。")
+                        Text("暂无历史帧。读取设备状态后可在这里查看并导出原始数据。")
                             .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(Studio.muted)
                     } else {
@@ -757,14 +715,14 @@ struct ContentView: View {
 }
 
 private enum AppTab: CaseIterable {
-    case overview, controls, devices, diagnostics, lighting
+    case overview, controls, devices, diagnostics, thermostat
     var title: String {
         switch self {
         case .overview: return "总览"
         case .controls: return "控制"
         case .devices: return "设备"
         case .diagnostics: return "诊断"
-        case .lighting: return "灯光"
+        case .thermostat: return "恒温"
         }
     }
     var icon: String {
@@ -773,7 +731,7 @@ private enum AppTab: CaseIterable {
         case .controls: return "slider.horizontal.3"
         case .devices: return "dot.radiowaves.left.and.right"
         case .diagnostics: return "waveform.path.ecg"
-        case .lighting: return "lightbulb"
+        case .thermostat: return "thermometer.medium"
         }
     }
     var selectedIcon: String {
@@ -782,7 +740,7 @@ private enum AppTab: CaseIterable {
         case .controls: return "slider.horizontal.3"
         case .devices: return "dot.radiowaves.left.and.right"
         case .diagnostics: return "waveform.path.ecg"
-        case .lighting: return "lightbulb.fill"
+        case .thermostat: return "thermometer.high"
         }
     }
     var tint: Color {
@@ -791,7 +749,7 @@ private enum AppTab: CaseIterable {
         case .controls: return Studio.lilac
         case .devices: return Studio.mint
         case .diagnostics: return Studio.peach
-        case .lighting: return Studio.butter
+        case .thermostat: return Studio.mint
         }
     }
 }
