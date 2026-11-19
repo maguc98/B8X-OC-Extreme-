@@ -193,6 +193,22 @@ final class B8XOCProtocolTests: XCTestCase {
         XCTAssertNil(B8XDualTemperatureController.nextSettings(from: status, targets: targets))
     }
 
+    func testLowTemperatureProtectionOverridesManualModeAndHeatingTarget() throws {
+        let manual = try B8XStatus.decode(
+            sampleFrame(mode: 0x10, coldInteger: 4, coldFraction: 9, hot: 38, windHundreds: 42, coldLevel: 130)
+        )
+        let targets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
+        let next = try XCTUnwrap(B8XDualTemperatureController.nextSettings(
+            from: manual,
+            targets: targets,
+            targetMode: .heating,
+            lowTemperatureProtectionEnabled: true
+        ))
+        XCTAssertEqual(next.coolingLevel, 1)
+        XCTAssertEqual(next.fanRPM, 1000)
+        XCTAssertTrue(next.reason.contains("冷端低温保护"))
+    }
+
     func testDualTemperatureControllerAppliesBothTemperatureSafetyLimits() throws {
         let status = try B8XStatus.decode(
             sampleFrame(coldInteger: 4, coldFraction: 9, hot: 45, windHundreds: 42, coldLevel: 130)
