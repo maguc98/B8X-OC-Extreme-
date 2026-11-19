@@ -229,7 +229,11 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         highTemperatureProtectionEnabled = highEnabled
         if !lowEnabled { lowProtectionLatched = false }
         if !highEnabled { highProtectionLatched = false }
-        evaluateThermalProtection(using: status)
+        if isDualTemperatureControlEnabled, let current = status {
+            evaluateDualTemperatureControl(using: current)
+        } else {
+            evaluateThermalProtection(using: status)
+        }
     }
 
     private func evaluateThermalProtection(using current: B8XStatus?) {
@@ -307,6 +311,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             self.isBusy = false
             self.operationTimeout = nil
             self.lastCommandText = "读取最新设备状态超时，控制指令未发送。请检查连接后刷新状态。"
+            self.stopDualTemperatureControl(message: "状态读取超时，恒温已安全暂停。")
         }
         operationTimeout = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
