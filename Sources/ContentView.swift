@@ -96,7 +96,7 @@ struct ContentView: View {
     }
 
     private var tabBar: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 5) {
             tabButton(.overview)
             tabButton(.controls)
             tabButton(.thermostat)
@@ -148,7 +148,8 @@ struct ContentView: View {
                     .lineLimit(1)
             }
             .foregroundStyle(item == tab ? Studio.ink : Studio.muted)
-            .frame(width: 47, height: 49)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
             .background(
                 item == tab ? item.tint.opacity(0.92) : .clear,
                 in: Capsule()
