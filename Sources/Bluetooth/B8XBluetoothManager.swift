@@ -34,7 +34,6 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     @Published private(set) var modelNumber: String?
     @Published private(set) var manufacturerName: String?
     @Published private(set) var statusFrameDeltaSummary = "等待第二条状态帧进行对比"
-    @Published private(set) var physicalActionMarkers: [String] = []
 
     private var central: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
@@ -212,7 +211,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             highTemperatureProtectionEnabled: highTemperatureProtectionEnabled
         ) else {
             dualTemperatureControlText = String(
-                format: "雙溫度保持中 · 冷端 %.1f/%.1f°C · 熱端 %d/%.0f°C",
+                format: "双温度保持中 · 冷端 %.1f/%.1f°C · 熱端 %d/%.0f°C",
                 current.coldTemperature, dualTemperatureTargets.coldCelsius,
                 current.hotTemperature, dualTemperatureTargets.hotCelsius
             )
