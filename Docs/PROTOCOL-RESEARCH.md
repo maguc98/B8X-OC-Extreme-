@@ -255,3 +255,21 @@ The seven values actually present in the 21:37–21:38 capture (`03, 04, 05, 06,
 This is now the leading interpretation of B8X status byte 15. It is still a hypothesis because the earlier captures do not record the exact frame of each physical double-press, and the B6/B6X type list is not a B8X-specific packet capture. The repeated set of matching identifiers is strong corroboration, but not sufficient on its own to authorize writes.
 
 Next validation target: establish a timestamped, single physical double-press and compare the immediately preceding and following status frames. If byte 15 changes from one of these identifiers to the next selected effect at the action boundary, decode it as the B8X current effect ID. This would validate the status mapping, but would still not independently validate the B8X `0x50` write payload or `0x51` readback. Keep those writes disabled until separately evidenced.
+
+
+## Dual-temperature thermostat (app-side closed loop)
+
+The iOS app now exposes a dedicated **双温度恒温** page. It replaces the former local-only lighting studio and removes the unverified `0x51` lighting probe and physical-button capture UI. The verified B8X light power switch (`10 FF` / `10 00`) remains available; no RGB/effect writes are implemented.
+
+The controller uses the already implemented combined `0x20` settings packet to coordinate both actuator targets:
+- Cold-side target: 10–25°C; adjusts the cooling raw level.
+- Hot-side target: 30–42°C; adjusts the fan target.
+- Normal automatic cooling adjustment is clamped to 92–175.
+- Automatic fan adjustment is clamped to 4,000–6,000 RPM.
+- Cold-side protection requests cooling level 92 at or below 5°C when enabled.
+- Hot-side protection requests 6,000 RPM at or above 45°C when enabled.
+- The control law uses deadbands and small discrete steps; it does not assume an exact linear relationship between raw cooling level and temperature.
+- The app polls status every 3 seconds while enabled and enforces at least 8 seconds between adjustment writes. Every write continues through the existing status-read, BLE write, and device-confirmation path.
+- If BLE disconnects, status reads time out, the device does not confirm a command, or the app leaves the foreground, app-side automatic control pauses. The last manual settings remain applied; stopping does not restore native device AUTO mode.
+
+**Important validation status:** the controller algorithm and packet construction are covered by unit tests, but it has not yet been validated on the user's physical B8X. This is an app-side feedback controller, not firmware-level regulation. The app must remain in the foreground with Bluetooth connected for continuous regulation; iOS suspension or app termination cannot be treated as a continuous-control guarantee. Actual temperatures may oscillate around their targets because fan and cooling outputs are coupled and environmental conditions vary. Avoid running the cold plate below ambient dew point to prevent condensation.
