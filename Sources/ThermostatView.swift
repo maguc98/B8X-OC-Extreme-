@@ -54,6 +54,8 @@ struct ThermostatView: View {
                     Text(String(format: "%.1f°C", coldTarget))
                         .font(.system(size: 22, weight: .heavy, design: .rounded))
                         .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.48, dampingFraction: 0.72), value: coldTarget)
                         .foregroundStyle(ThermostatPalette.blueInk)
                 }
                 Slider(value: $coldTarget, in: 10...25, step: 0.5)
@@ -84,6 +86,8 @@ struct ThermostatView: View {
                     Text(String(format: "%.0f°C", hotTarget))
                         .font(.system(size: 22, weight: .heavy, design: .rounded))
                         .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.48, dampingFraction: 0.72), value: hotTarget)
                         .foregroundStyle(ThermostatPalette.coral)
                 }
                 Slider(value: $hotTarget, in: 30...42, step: 1)
@@ -242,12 +246,13 @@ struct ThermostatView: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(tint)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit()
+                Text(value).font(.system(size: 27, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.52, dampingFraction: 0.70), value: value)
                 Text("°C").font(.system(size: 9, weight: .bold))
             }
             .foregroundStyle(ThermostatPalette.ink)
             Text("目标 \(target)")
                 .font(.system(size: 8, weight: .semibold))
+                .contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: target)
                 .foregroundStyle(ThermostatPalette.muted)
         }
         .padding(11)
@@ -258,7 +263,7 @@ struct ThermostatView: View {
     private func compactMetric(_ title: String, value: String, unit: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.system(size: 7, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
-            Text(value).font(.system(size: 12, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(ThermostatPalette.ink)
+            Text(value).font(.system(size: 12, weight: .heavy, design: .rounded)).monospacedDigit().contentTransition(.numericText()).animation(.spring(response: 0.48, dampingFraction: 0.72), value: value).foregroundStyle(ThermostatPalette.ink)
             Text(unit).font(.system(size: 7, weight: .bold)).foregroundStyle(ThermostatPalette.blueInk)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
