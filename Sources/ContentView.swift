@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var bluetooth = B8XBluetoothManager()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: AppTab = .overview
     @State private var fanTarget = 4200.0
     @State private var coldTarget = 110.0
@@ -46,6 +47,11 @@ struct ContentView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
         .preferredColorScheme(.light)
         .onAppear { bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active && bluetooth.isDualTemperatureControlEnabled {
+                bluetooth.stopDualTemperatureControl(message: "App 已离开前台，恒温自动调节已暂停。")
+            }
+        }
         .onChange(of: fanTarget) { _ in if isAdjustingFan { emitSliderHaptic() } }
         .onChange(of: coldTarget) { _ in if isAdjustingCold { emitSliderHaptic() } }
         .onChange(of: lowTemperatureProtectionEnabled) { _ in bluetooth.configureThermalProtection(lowEnabled: lowTemperatureProtectionEnabled, highEnabled: highTemperatureProtectionEnabled) }
