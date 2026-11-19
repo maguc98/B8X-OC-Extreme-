@@ -96,26 +96,27 @@ struct ContentView: View {
     }
 
     private var tabBar: some View {
-        HStack(alignment: .center, spacing: 10) {
-            HStack(spacing: 3) {
-                tabButton(.overview)
-                tabButton(.controls)
-                tabButton(.thermostat)
-            }
-            .padding(5)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.78), lineWidth: 1))
-            .shadow(color: Studio.ink.opacity(0.10), radius: 14, x: 0, y: 5)
-
-            HStack(spacing: 3) {
-                tabButton(.devices)
-                tabButton(.diagnostics)
-            }
-            .padding(5)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.78), lineWidth: 1))
-            .shadow(color: Studio.ink.opacity(0.10), radius: 14, x: 0, y: 5)
+        HStack(spacing: 3) {
+            tabButton(.overview)
+            tabButton(.controls)
+            tabButton(.thermostat)
+            tabButton(.devices)
+            tabButton(.diagnostics)
         }
+        .padding(5)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+            Capsule().stroke(
+                LinearGradient(
+                    colors: [.white.opacity(0.95), .white.opacity(0.38), .white.opacity(0.72)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1
+            )
+        }
+        .shadow(color: Studio.ink.opacity(0.12), radius: 18, x: 0, y: 7)
+        .shadow(color: .white.opacity(0.72), radius: 2, x: 0, y: -1)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 13)
         .padding(.top, 8)
