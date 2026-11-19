@@ -63,7 +63,7 @@ struct ThermostatView: View {
                         .foregroundStyle(ThermostatPalette.blueInk)
                 }
                 Slider(value: $coldTarget, in: 10...25, step: 0.5)
-                    .tint(ThermostatPalette.blue)
+                    .tint(ThermostatPalette.blueInk)
                     .disabled(bluetooth.isDualTemperatureControlEnabled)
                 HStack {
                     Text("10°C")
