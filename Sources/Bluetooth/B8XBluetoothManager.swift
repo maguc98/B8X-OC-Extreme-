@@ -202,7 +202,12 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
               requestedControl == nil,
               awaitingConfirmation == nil else { return }
 
-        guard Date().timeIntervalSince(lastDualTemperatureAdjustment) >= 8 else { return }
+        let safetyOverride =
+            (lowTemperatureProtectionEnabled && current.coldTemperature <= 5.0) ||
+            (highTemperatureProtectionEnabled && current.hotTemperature >= 45)
+        if !safetyOverride && Date().timeIntervalSince(lastDualTemperatureAdjustment) < 8 {
+            return
+        }
 
         guard let next = B8XDualTemperatureController.nextSettings(
             from: current,
