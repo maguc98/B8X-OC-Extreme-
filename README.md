@@ -4,7 +4,7 @@ Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phon
 
 ## Current implementation
 
-- Four redesigned app sections: Overview, Controls, Devices, and Diagnostics.
+- Five app sections: Overview, Controls, Devices, Diagnostics, and a new dual-temperature Thermostat.
 - Scan nearby Bluetooth Low Energy peripherals and connect to a selected device.
 - Discover the B8X GATT service and characteristics.
 - Subscribe to status notifications and decode the 20-byte status frame.
@@ -12,6 +12,9 @@ Unofficial iOS BLE controller and protocol research app for the Flydigi B8X phon
 - Read the latest status before each control write and wait for a matching device notification before reporting success.
 - Fan target range is 1–6,000 RPM with 1 RPM resolution and no fixed slider step. The public reference validates ordinary settings only through 4,500 RPM; values below 4,000 RPM and above 4,500 RPM are experimental and need hardware verification. Applying a fixed RPM target also selects manual mode.
 - Cooling target range is 1–255 raw levels with 1-level resolution. The public reference validates 92–175; values outside that range are experimental and are not guaranteed across B8X firmware revisions. Slider movement provides rate-limited haptic feedback.
+- Dual-temperature thermostat: users set separate cold-side and hot-side targets. An app-side feedback controller adjusts the combined fan and cooling settings in small steps using the existing 0x20 packet.
+- The thermostat polls every 3 seconds and spaces automatic adjustments by at least 8 seconds. Cold target range is 10–25°C; hot target range is 30–42°C. Normal automatic cooling is clamped to 92–175, fan target to 4,000–6,000 RPM.
+- The old local-only lighting-effects studio and unverified lighting-protocol probe have been removed. The verified hardware light power toggle remains available.
 - Run protocol unit tests with SwiftPM in GitHub Actions before the Xcode iOS build and unsigned IPA packaging.
 
 ## Current protocol reference
@@ -29,7 +32,7 @@ Implementation is based on the public reference project: https://github.com/shao
 
 The app permits reducing an already-reported fan setting above 6,000 RPM to 6,000 RPM or less. Other controls are blocked while the reported fan setting remains above the app's new ceiling, so another control cannot silently preserve an above-limit fan setting.
 
-See the protocol research notes for decoded byte offsets, packet format, unknown fields, and a practical capture procedure.
+See the protocol research notes for decoded byte offsets, packet format, unknown fields, historical captures, and thermostat behavior.
 
 ## GitHub Actions IPA build
 
@@ -58,6 +61,8 @@ Requires Swift 5.9+, macOS, Xcode, and XcodeGen.
 - No firmware update, factory reset, or thermal-protection bypass is implemented.
 - The reference project has not established that the full fan or cooling ranges are supported by all B8X firmware revisions.
 - Keep the cooler's original thermal protections enabled.
+- The dual-temperature controller is app-side, not firmware-level. It requires the iOS app to remain in the foreground and connected to B8X; iOS suspension, app termination, or Bluetooth disconnection pauses regulation.
+- Unit tests validate the controller's step policy and safety bounds, but actual temperature-holding performance has not yet been verified on physical B8X hardware.
 - Watch for condensation when cooling below the ambient dew point.
 
 ## License
