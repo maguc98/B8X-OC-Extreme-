@@ -641,7 +641,7 @@ extension B8XBluetoothManager: CBPeripheralDelegate {
                 $0.uuid == notifyID &&
                 ($0.properties.contains(.notify) || $0.properties.contains(.indicate))
             })
-            if let writeCharacteristic, let notifyCharacteristic {
+            if writeCharacteristic != nil, let notifyCharacteristic {
                 peripheral.setNotifyValue(true, for: notifyCharacteristic)
                 detailText = "正在订阅设备状态通知…"
             } else {
