@@ -59,12 +59,12 @@ struct ContentView: View {
         .onChange(of: bluetooth.status) { value in
             guard let value else { fanDirty = false; coldDirty = false; return }
             if !fanDirty { fanTarget = min(max(Double(value.windLevel), 1), 6000) }
-            if !coldDirty { coldTarget = (1...255).contains(value.coldLevel) ? Double(value.coldLevel) : 1 }
+            if !coldDirty { coldTarget = (0...255).contains(value.coldLevel) ? Double(value.coldLevel) : 0 }
         }
         .onChange(of: bluetooth.lastCommandText) { message in
             guard message == "设备已回报确认，控制成功", let value = bluetooth.status else { return }
             fanTarget = min(max(Double(value.windLevel), 1), 6000)
-            coldTarget = min(max(Double(value.coldLevel), 1), 255)
+            coldTarget = min(max(Double(value.coldLevel), 0), 255)
             fanDirty = false
             coldDirty = false
         }
@@ -319,7 +319,7 @@ struct ContentView: View {
                                 Text("设定目标").font(.system(size: 8, weight: .bold)).foregroundStyle(Studio.muted)
                             }
                         }
-                        Slider(value: $coldTarget, in: 1...255) { editing in
+                        Slider(value: $coldTarget, in: 0...255) { editing in
                             isAdjustingCold = editing
                             if editing { coldDirty = true; emitSliderHaptic() }
                         }.tint(Studio.green)
@@ -363,8 +363,8 @@ struct ContentView: View {
                         Text("将两个目标一起写入，并切换到手动模式；界面会以设备回报作为最终状态。")
                             .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.muted)
                             .fixedSize(horizontal: false, vertical: true)
-                        if s.coldLevel < 1 || s.coldLevel > 255 {
-                            Text("设备当前制冷原始值 \(s.coldLevel) 超出 1–255；本次写入将替换为上方目标档位。")
+                        if s.coldLevel < 0 || s.coldLevel > 255 {
+                            Text("设备当前制冷原始值 \(s.coldLevel) 超出 0–255；本次写入将替换为上方目标档位。")
                                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Studio.goldInk)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
