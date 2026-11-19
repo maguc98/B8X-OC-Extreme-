@@ -43,7 +43,7 @@ struct ThermostatView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionTitle("控制模式", note: "SELECT ONE TARGET")
             HStack(spacing: 9) {
-                modeButton("制冷", detail: "仅调节制冷档位", mode: .cooling, tint: ThermostatPalette.blueInk, wash: ThermostatPalette.sky)
+                modeButton("制冷恒温", detail: "联动调节制冷档位与风扇", mode: .cooling, tint: ThermostatPalette.blueInk, wash: ThermostatPalette.sky)
                 modeButton("制热", detail: "仅管理散热风扇", mode: .heating, tint: ThermostatPalette.coral, wash: ThermostatPalette.peach)
             }
             Text("运行期间锁定模式，停止后可切换。制热模式仅通过风扇管理热端温度，B8X 不具备已验证的主动加热能力。")
@@ -82,7 +82,7 @@ struct ThermostatView: View {
                         .background(ThermostatPalette.sky, in: RoundedRectangle(cornerRadius: 11))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("冷端目标").font(.system(size: 11, weight: .bold)).foregroundStyle(ThermostatPalette.ink)
-                        Text("控制制冷档位").font(.system(size: 8, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
+                        Text("与风扇转速联动控制冷端温度").font(.system(size: 8, weight: .medium)).foregroundStyle(ThermostatPalette.muted)
                     }
                     Spacer()
                     Text(String(format: "%.1f°C", coldTarget))
@@ -136,7 +136,7 @@ struct ThermostatView: View {
                 .foregroundStyle(ThermostatPalette.muted)
             }
 
-            Text("目标范围为冷端 10–25°C、热端 30–42°C。两个目标相互影响，实际温度会在缓冲区内波动，不承诺精确锁定单一数值。")
+            Text("制冷恒温以冷端目标为依据，联动调整制冷档位（1–255）与风扇设定（1,000–6,000 RPM）：需要升温时同时降低两者，需要降温时同时提高两者。实际温度会有惯性与波动，不承诺精确锁定单一数值。")
                 .font(.system(size: 8, weight: .medium))
                 .foregroundStyle(ThermostatPalette.muted)
                 .fixedSize(horizontal: false, vertical: true)
