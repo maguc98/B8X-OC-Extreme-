@@ -58,6 +58,8 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
     private var dualTemperatureTargets = B8XDualTemperatureTargets(coldCelsius: 15, hotCelsius: 40)
     private var dualTemperaturePollingWorkItem: DispatchWorkItem?
     private var lastDualTemperatureAdjustment = Date.distantPast
+    private var dualTemperatureStartedAt: Date?
+    private var lastStatusReceivedAt: Date?
     private var lastCapturedRawFrame: [UInt8]?
 
     override init() {
@@ -161,6 +163,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             hotCelsius: hotTarget
         )
         lastDualTemperatureAdjustment = .distantPast
+        dualTemperatureStartedAt = Date()
         isDualTemperatureControlEnabled = true
         dualTemperatureControlText = String(
             format: "双温度恒温已启动：冷端 %.1f°C · 热端 %.0f°C",
@@ -174,6 +177,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         isDualTemperatureControlEnabled = false
         dualTemperaturePollingWorkItem?.cancel()
         dualTemperaturePollingWorkItem = nil
+        dualTemperatureStartedAt = nil
         dualTemperatureControlText = message
     }
 
@@ -182,6 +186,14 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
         guard isDualTemperatureControlEnabled else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.isDualTemperatureControlEnabled else { return }
+            let freshnessAnchor = max(
+                self.lastStatusReceivedAt ?? .distantPast,
+                self.dualTemperatureStartedAt ?? Date()
+            )
+            if Date().timeIntervalSince(freshnessAnchor) > 10 {
+                self.stopDualTemperatureControl(message: "超过 10 秒没有收到新的温度数据，恒温已安全暂停。")
+                return
+            }
             if self.notificationReady,
                !self.isBusy,
                self.requestedControl == nil,
@@ -215,11 +227,42 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
             lowTemperatureProtectionEnabled: lowTemperatureProtectionEnabled,
             highTemperatureProtectionEnabled: highTemperatureProtectionEnabled
         ) else {
-            dualTemperatureControlText = String(
-                format: "双温度保持中 · 冷端 %.1f/%.1f°C · 熱端 %d/%.0f°C",
-                current.coldTemperature, dualTemperatureTargets.coldCelsius,
-                current.hotTemperature, dualTemperatureTargets.hotCelsius
-            )
+            var limitMessages: [String] = []
+            if lowTemperatureProtectionEnabled,
+               current.coldTemperature <= 5.0,
+               current.coldLevel <= B8XDualTemperatureController.minimumAutomaticCoolingLevel {
+                limitMessages.append("冷端低温保护维持最低制冷")
+            }
+            if highTemperatureProtectionEnabled,
+               current.hotTemperature >= 45,
+               current.windLevel >= B8XDualTemperatureController.maximumAutomaticFanRPM {
+                limitMessages.append("热端高温保护维持最高风扇")
+            }
+            if current.coldTemperature > dualTemperatureTargets.coldCelsius + 1.5,
+               current.coldLevel >= B8XDualTemperatureController.maximumAutomaticCoolingLevel {
+                limitMessages.append("制冷已达上限，冷端仍高于目标")
+            }
+            if current.coldTemperature < dualTemperatureTargets.coldCelsius - 1.5,
+               current.coldLevel <= B8XDualTemperatureController.minimumAutomaticCoolingLevel {
+                limitMessages.append("制冷已达下限，冷端仍低于目标")
+            }
+            if Double(current.hotTemperature) > dualTemperatureTargets.hotCelsius + 1.5,
+               current.windLevel >= B8XDualTemperatureController.maximumAutomaticFanRPM {
+                limitMessages.append("风扇已达上限，热端仍高于目标")
+            }
+            if Double(current.hotTemperature) < dualTemperatureTargets.hotCelsius - 1.5,
+               current.windLevel <= B8XDualTemperatureController.minimumAutomaticFanRPM {
+                limitMessages.append("风扇已达下限，热端仍低于目标")
+            }
+            if limitMessages.isEmpty {
+                dualTemperatureControlText = String(
+                    format: "双温度保持中 · 冷端 %.1f/%.1f°C · 热端 %d/%.0f°C",
+                    current.coldTemperature, dualTemperatureTargets.coldCelsius,
+                    current.hotTemperature, dualTemperatureTargets.hotCelsius
+                )
+            } else {
+                dualTemperatureControlText = limitMessages.joined(separator: "；")
+            }
             return
         }
 
@@ -359,6 +402,7 @@ final class B8XBluetoothManager: NSObject, ObservableObject {
 
     private func handleStatus(_ newStatus: B8XStatus) {
         status = newStatus
+        lastStatusReceivedAt = Date()
         let hex = newStatus.raw.map { String(format: "%02X", $0) }.joined(separator: " ")
         if let previous = lastCapturedRawFrame, previous.count == newStatus.raw.count {
             let changes = zip(previous, newStatus.raw).enumerated().compactMap { index, pair -> String? in
@@ -474,6 +518,7 @@ extension B8XBluetoothManager: CBCentralManagerDelegate {
         stateText = "已连接 \(connectedName ?? "B8X")"
         detailText = "正在发现 B8X 服务…"
         status = nil
+        lastStatusReceivedAt = nil
         writeCharacteristic = nil
         notifyCharacteristic = nil
         notificationReady = false
