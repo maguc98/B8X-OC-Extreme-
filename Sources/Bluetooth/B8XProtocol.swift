@@ -58,7 +58,7 @@ enum B8XDualTemperatureController {
     static let hotTargetRange: ClosedRange<Double> = 30.0...42.0
     static let minimumAutomaticFanRPM = 1000
     static let maximumAutomaticFanRPM = 6000
-    static let minimumAutomaticCoolingLevel = 1
+    static let minimumAutomaticCoolingLevel = 0
     static let maximumAutomaticCoolingLevel = 255
 
     // Ignore implausible telemetry rather than driving hardware from a bad sensor frame.
@@ -189,7 +189,7 @@ enum B8XProtocolError: LocalizedError {
         case .invalidFields: return "状态帧包含无效字段"
         case .unsupportedMode: return "设备返回了未验证的运行模式"
         case .invalidWindLevel: return "风扇设定必须在 1–6000 RPM 范围内"
-        case .invalidColdLevel: return "制冷设定必须在 1–255 范围内"
+        case .invalidColdLevel: return "制冷设定必须在 0–255 范围内"
         case .missingStatus: return "尚未读取设备状态"
         }
     }
@@ -210,7 +210,7 @@ enum B8XControl {
         guard fanRange.contains(status.windLevel) else {
             throw B8XProtocolError.invalidWindLevel
         }
-        guard (1...255).contains(status.coldLevel) else {
+        guard (0...255).contains(status.coldLevel) else {
             throw B8XProtocolError.invalidColdLevel
         }
     }
@@ -234,7 +234,7 @@ enum B8XControl {
             return .wind(value, mode: 1, cold: status.coldLevel)
         case .cold(let value):
             try validateCurrentSettings(status)
-            guard (1...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
+            guard (0...255).contains(value) else { throw B8XProtocolError.invalidColdLevel }
             return .cold(value, mode: status.modeRaw, wind: status.windLevel)
         case .settings(let wind, let cold):
             guard (1...6000).contains(wind) else {
