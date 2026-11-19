@@ -56,10 +56,10 @@ struct B8XAutomaticSettings: Equatable {
 enum B8XDualTemperatureController {
     static let coldTargetRange: ClosedRange<Double> = 10.0...25.0
     static let hotTargetRange: ClosedRange<Double> = 30.0...42.0
-    static let minimumAutomaticFanRPM = 4000
+    static let minimumAutomaticFanRPM = 1000
     static let maximumAutomaticFanRPM = 6000
-    static let minimumAutomaticCoolingLevel = 92
-    static let maximumAutomaticCoolingLevel = 175
+    static let minimumAutomaticCoolingLevel = 1
+    static let maximumAutomaticCoolingLevel = 255
 
     // Ignore implausible telemetry rather than driving hardware from a bad sensor frame.
     static let plausibleColdTemperatureRange: ClosedRange<Double> = -20.0...60.0
@@ -79,65 +79,78 @@ enum B8XDualTemperatureController {
             return nil
         }
 
-        // Keep the controller proportional in small, bounded steps. The B8X
-        // cooling byte is not a calibrated temperature scale, so never infer
-        // a linear °C-to-level conversion.
-        let reportedCoolingIsPlausible =
-            (minimumAutomaticCoolingLevel...maximumAutomaticCoolingLevel).contains(status.coldLevel)
-        let currentCooling = reportedCoolingIsPlausible ? status.coldLevel : 110
-        let currentFan = min(max(status.windLevel, minimumAutomaticFanRPM),
-                             maximumAutomaticFanRPM)
-
+        // Both outputs are valid full-range controls. Cooling level is a byte,
+        // not a calibrated temperature scale, so only bounded feedback steps are used.
+        let currentCooling = status.coldLevel
+        let currentFan = status.windLevel
         let coldError = status.coldTemperature - targets.coldCelsius
+        let hotError = Double(status.hotTemperature) - targets.hotCelsius
         var coolingDelta = 0
+        var fanDelta = 0
         var reasons: [String] = []
 
-        if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
-            coolingDelta = minimumAutomaticCoolingLevel - currentCooling
-            reasons.append("冷端低温保护")
-        } else if targetMode == .cooling && coldError >= 6.0 {
-            coolingDelta = 6
-            reasons.append("冷端明显偏热，增加制冷")
-        } else if targetMode == .cooling && coldError >= 3.0 {
-            coolingDelta = 4
-            reasons.append("冷端偏热，增加制冷")
-        } else if targetMode == .cooling && coldError >= 1.5 {
-            coolingDelta = 2
-            reasons.append("冷端轻微偏热，微增制冷")
-        } else if targetMode == .cooling && coldError <= -6.0 {
-            coolingDelta = -6
-            reasons.append("冷端明显偏冷，降低制冷")
-        } else if targetMode == .cooling && coldError <= -3.0 {
-            coolingDelta = -4
-            reasons.append("冷端偏冷，降低制冷")
-        } else if targetMode == .cooling && coldError <= -1.5 {
-            coolingDelta = -2
-            reasons.append("冷端轻微偏冷，微降制冷")
+        if targetMode == .cooling {
+            // The cold-side setpoint governs BOTH outputs:
+            // warmer required -> reduce cooling and fan; colder required -> increase both.
+            if lowTemperatureProtectionEnabled && status.coldTemperature <= 5.0 {
+                coolingDelta = minimumAutomaticCoolingLevel - currentCooling
+                fanDelta = minimumAutomaticFanRPM - currentFan
+                reasons.append("冷端低温保护：制冷与风扇降至下限")
+            } else if coldError >= 6.0 {
+                coolingDelta = 12
+                fanDelta = 600
+                reasons.append("冷端明显偏热：提高制冷与风扇")
+            } else if coldError >= 3.0 {
+                coolingDelta = 8
+                fanDelta = 400
+                reasons.append("冷端偏热：提高制冷与风扇")
+            } else if coldError >= 1.5 {
+                coolingDelta = 2
+                fanDelta = 200
+                reasons.append("冷端轻微偏热：微增制冷与风扇")
+            } else if coldError <= -6.0 {
+                coolingDelta = -12
+                fanDelta = -600
+                reasons.append("冷端明显偏冷：降低制冷与风扇")
+            } else if coldError <= -3.0 {
+                coolingDelta = -8
+                fanDelta = -400
+                reasons.append("冷端偏冷：降低制冷与风扇")
+            } else if coldError <= -1.5 {
+                coolingDelta = -2
+                fanDelta = -200
+                reasons.append("冷端轻微偏冷：微降制冷与风扇")
+            }
+        } else {
+            // Heat-side management remains fan-only; the B8X has no verified heater.
+            if highTemperatureProtectionEnabled && status.hotTemperature >= 45 {
+                fanDelta = maximumAutomaticFanRPM - currentFan
+                reasons.append("热端高温保护：风扇升至上限")
+            } else if hotError >= 6.0 {
+                fanDelta = 600
+                reasons.append("热端明显偏热，提高风扇")
+            } else if hotError >= 3.0 {
+                fanDelta = 400
+                reasons.append("热端偏热，提高风扇")
+            } else if hotError >= 1.5 {
+                fanDelta = 200
+                reasons.append("热端轻微偏热，微增风扇")
+            } else if hotError <= -6.0 {
+                fanDelta = -600
+                reasons.append("热端明显低于目标，降低风扇")
+            } else if hotError <= -3.0 {
+                fanDelta = -400
+                reasons.append("热端低于目标，降低风扇")
+            } else if hotError <= -1.5 {
+                fanDelta = -200
+                reasons.append("热端轻微低于目标，微降风扇")
+            }
         }
 
-        let hotError = Double(status.hotTemperature) - targets.hotCelsius
-        var fanDelta = 0
+        // Independent thermal safety always remains active in either mode.
         if highTemperatureProtectionEnabled && status.hotTemperature >= 45 {
             fanDelta = maximumAutomaticFanRPM - currentFan
             reasons.append("热端高温保护")
-        } else if targetMode == .heating && hotError >= 6.0 {
-            fanDelta = 600
-            reasons.append("热端明显偏热，提高风扇")
-        } else if targetMode == .heating && hotError >= 3.0 {
-            fanDelta = 400
-            reasons.append("热端偏热，提高风扇")
-        } else if targetMode == .heating && hotError >= 1.5 {
-            fanDelta = 200
-            reasons.append("热端轻微偏热，微增风扇")
-        } else if targetMode == .heating && hotError <= -6.0 {
-            fanDelta = -600
-            reasons.append("热端明显低于目标，降低风扇")
-        } else if targetMode == .heating && hotError <= -3.0 {
-            fanDelta = -400
-            reasons.append("热端低于目标，降低风扇")
-        } else if targetMode == .heating && hotError <= -1.5 {
-            fanDelta = -200
-            reasons.append("热端轻微低于目标，微降风扇")
         }
 
         let nextCooling = min(max(currentCooling + coolingDelta,
@@ -147,8 +160,6 @@ enum B8XDualTemperatureController {
                               minimumAutomaticFanRPM),
                           maximumAutomaticFanRPM)
 
-        // Do not issue a corrective write merely because a single telemetry
-        // byte is anomalous. Wait until a real temperature error calls for it.
         guard nextCooling != currentCooling || nextFan != currentFan else { return nil }
         return B8XAutomaticSettings(
             fanRPM: nextFan,
